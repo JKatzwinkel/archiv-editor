@@ -86,7 +86,7 @@ public class UpdateAllDataHandler implements IHandler
 		if (!_urChecker.isUserGuest())
 		{
 
-			ProgressMonitorDialog dialog = new ProgressMonitorDialog(HandlerUtil.getActiveShell(event).getShell());
+			ProgressMonitorDialog dialog = new ProgressMonitorDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell());
 			dialog.setCancelable(true);
 
 			try
@@ -117,58 +117,6 @@ public class UpdateAllDataHandler implements IHandler
 											.getPassword(), monitor);
 								}
 							}
-							catch (final XMLStreamException e)
-							{
-								e.printStackTrace();
-
-								UIJob job = new UIJob("Feedbackup")
-								{
-									@Override
-									public IStatus runInUIThread(final IProgressMonitor monitor)
-									{
-										IWorkbench workbench = PlatformUI.getWorkbench();
-										Display display = workbench.getDisplay();
-										Shell shell = new Shell(display);
-										String info = NLMessages.getString("Command_update_error") + "\n\n"
-												+ e.getMessage();
-										MessageDialog infoDialog = new MessageDialog(shell, NLMessages
-												.getString("Command_update_error"), null, info, MessageDialog.ERROR,
-												new String[]
-												{"OK"}, 0); //$NON-NLS-1$
-										infoDialog.open();
-
-										return Status.OK_STATUS;
-									}
-								};
-								job.setUser(true);
-								job.schedule();
-							}
-							catch (final UnsupportedEncodingException e)
-							{
-								e.printStackTrace();
-
-								UIJob job = new UIJob("Feedbackup")
-								{
-									@Override
-									public IStatus runInUIThread(final IProgressMonitor monitor)
-									{
-										IWorkbench workbench = PlatformUI.getWorkbench();
-										Display display = workbench.getDisplay();
-										Shell shell = new Shell(display);
-										String info = NLMessages.getString("Command_update_error") + "\n\n"
-												+ e.getMessage();
-										MessageDialog infoDialog = new MessageDialog(shell, NLMessages
-												.getString("Command_update_error"), null, info, MessageDialog.ERROR,
-												new String[]
-												{"OK"}, 0); //$NON-NLS-1$
-										infoDialog.open();
-
-										return Status.OK_STATUS;
-									}
-								};
-								job.setUser(true);
-								job.schedule();
-							}
 							catch (final Exception e)
 							{
 								e.printStackTrace();
@@ -179,8 +127,9 @@ public class UpdateAllDataHandler implements IHandler
 									public IStatus runInUIThread(final IProgressMonitor monitor)
 									{
 										IWorkbench workbench = PlatformUI.getWorkbench();
-										Display display = workbench.getDisplay();
-										Shell shell = new Shell(display);
+										//Display display = workbench.getDisplay();
+										//Shell shell = new Shell(display);
+										Shell shell = HandlerUtil.getActiveWorkbenchWindow(event).getShell();
 										String info = NLMessages.getString("Command_update_error") + "\n\n"
 												+ e.getMessage();
 										MessageDialog infoDialog = new MessageDialog(shell, NLMessages
@@ -188,12 +137,64 @@ public class UpdateAllDataHandler implements IHandler
 												new String[]
 												{"OK"}, 0); //$NON-NLS-1$
 										infoDialog.open();
+
 										return Status.OK_STATUS;
 									}
 								};
 								job.setUser(true);
 								job.schedule();
 							}
+//							catch (final UnsupportedEncodingException e)
+//							{
+//								e.printStackTrace();
+//
+//								UIJob job = new UIJob("Feedbackup")
+//								{
+//									@Override
+//									public IStatus runInUIThread(final IProgressMonitor monitor)
+//									{
+//										IWorkbench workbench = PlatformUI.getWorkbench();
+//										Display display = workbench.getDisplay();
+//										Shell shell = new Shell(display);
+//										String info = NLMessages.getString("Command_update_error") + "\n\n"
+//												+ e.getMessage();
+//										MessageDialog infoDialog = new MessageDialog(shell, NLMessages
+//												.getString("Command_update_error"), null, info, MessageDialog.ERROR,
+//												new String[]
+//												{"OK"}, 0); //$NON-NLS-1$
+//										infoDialog.open();
+//
+//										return Status.OK_STATUS;
+//									}
+//								};
+//								job.setUser(true);
+//								job.schedule();
+//							}
+//							catch (final Exception e)
+//							{
+//								e.printStackTrace();
+//
+//								UIJob job = new UIJob("Feedbackup")
+//								{
+//									@Override
+//									public IStatus runInUIThread(final IProgressMonitor monitor)
+//									{
+//										IWorkbench workbench = PlatformUI.getWorkbench();
+//										Display display = workbench.getDisplay();
+//										Shell shell = new Shell(display);
+//										String info = NLMessages.getString("Command_update_error") + "\n\n"
+//												+ e.getMessage();
+//										MessageDialog infoDialog = new MessageDialog(shell, NLMessages
+//												.getString("Command_update_error"), null, info, MessageDialog.ERROR,
+//												new String[]
+//												{"OK"}, 0); //$NON-NLS-1$
+//										infoDialog.open();
+//										return Status.OK_STATUS;
+//									}
+//								};
+//								job.setUser(true);
+//								job.schedule();
+//							}
 						} // for-loop
 
 						UIJob job = new UIJob("Feedbackup")
@@ -243,7 +244,9 @@ public class UpdateAllDataHandler implements IHandler
 						Display display = workbench.getDisplay();
 						Shell shell = new Shell(display);
 						String info = NLMessages.getString("Command_update_error") + e.toString() + "\n\n"
-								+ e.getMessage();
+								+ e.getMessage() + "\n\n"
+								+ e.getCause().toString() + "\n"
+								+ e.getCause().getMessage();
 						MessageDialog infoDialog = new MessageDialog(shell,
 								NLMessages.getString("Command_update_error"), null, info, MessageDialog.ERROR,
 								new String[]

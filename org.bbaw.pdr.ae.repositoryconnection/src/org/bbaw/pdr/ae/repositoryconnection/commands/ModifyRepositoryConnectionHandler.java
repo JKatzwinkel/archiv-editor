@@ -97,7 +97,7 @@ public class ModifyRepositoryConnectionHandler implements IHandler
 			if (!_facade.getDBManager().dbIsEmpty())
 			{
 				String message = NLMessages.getString("Command_empty_db_requiered");
-				MessageDialog messageDialog = new MessageDialog(HandlerUtil.getActiveWorkbenchWindow(event).getShell(),
+				MessageDialog messageDialog = new MessageDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(),
 						NLMessages.getString("Command_modify_repository_connection"), null, message,
 						MessageDialog.WARNING, new String[]
 						{NLMessages.getString("Command_backup_and_empty"), NLMessages.getString("Handler_cancel")}, 1);

@@ -724,6 +724,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 					}
 					if (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty())
 					{
+					     // XXX this might fix nullpointer problem of issue 3132
+					     PDRObjectDisplayNameProcessor dnp = new PDRObjectDisplayNameProcessor();
+						
 						conReferences = new Vector<PDRObjectsConflict>(_conflictingRepReferences.size());
 						ReferenceSaxHandler handler = new ReferenceSaxHandler();
 						for (String s : _conflictingRepReferences)
@@ -739,9 +742,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 									ReferenceMods parsedReference = (ReferenceMods) handler.getResultObject();
 									if (parsedReference != null)
 									{
-										_pdrDisplayNameProc.processDisplayName(parsedReference);
+										/*_pdrDisplayNameProc.processDisplayName(parsedReference);
 										_pdrDisplayNameProc.processDisplayNameLong(parsedReference);
-										oConflict.setRepositoryObject(parsedReference);
+										oConflict.setRepositoryObject(parsedReference);*/
+										dnp.processDisplayName(parsedReference); // XXX this produces a long display name and possibly fixes nullpointer exception in conflict dialog
+									    oConflict.setRepositoryObject(parsedReference); // FIXME: updateconflictdialog fails because of nullpointer when probably this object's longdisplayname is accessed
+
 									}
 									parsedReference = null;
 									oConflict.setLocalObject(_facade.getReference(new PdrId(id)));
@@ -774,7 +780,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					 Display display = workbench.getDisplay();
 					 Shell shell = new Shell(display);
 							UpdateConflictDialog dialog = new UpdateConflictDialog(shell, conAspects, conPersons, conReferences); //$NON-NLS-1$
-					 if (dialog.open() == 0)
+					 if (dialog.open() == 0)  // FIXME dialog GUI creation does not go well because of messed up reference obj
 					 {
 					 int totalWork = 0;
 					 if (conAspects != null) totalWork = conAspects.size();
@@ -937,7 +943,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					_conflictingRepAspects.addAll(subConflRepAspects);
 				}
 				monitor.worked(subAspects.size());
-				begin = end + 1;
+				begin = end + 1; // FIXME: fehlt da nicht einer?
 				if (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE + end)
 				{
 					end = end + MODIFIEDOBJECTS_PACKAGE_SIZE;
@@ -1053,7 +1059,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					_conflictingRepPersons.addAll(subConflictingPersons);
 				}
 				monitor.worked(subPersons.size());
-				begin = end + 1;
+				begin = end + 1; // FIXME fehlt da nicht einer?
 				if (persons.size() > NEWOBJECTS_PACKAGE_SIZE + end)
 				{
 					end = end + NEWOBJECTS_PACKAGE_SIZE;
@@ -1140,13 +1146,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			while (subReferences != null && !subReferences.isEmpty())
 			{
+				// FIXME: SOAP fault
 				subConflictingRefs = Repository.modifyObjects(_repositoryId, _projectId, subReferences, false);
 				if (subConflictingRefs != null && !subConflictingRefs.isEmpty())
 				{
 					_conflictingRepReferences.addAll(subConflictingRefs);
 				}
 				monitor.worked(subReferences.size());
-				begin = end + 1;
+				begin = end + 1; // FIXME: faellt hier nicht einer unter den tisch?
 				if (references.size() > NEWOBJECTS_PACKAGE_SIZE + end)
 				{
 					end = end + NEWOBJECTS_PACKAGE_SIZE;
@@ -1221,7 +1228,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			while (subUsers != null && !subUsers.isEmpty())
 			{
 				Repository.modifyObjects(_repositoryId, _projectId, subUsers, true);
-				begin = end + 1;
+				begin = end + 1; //FIXME fehlt da nicht einer?
 				if (users.size() > MODIFIEDOBJECTS_PACKAGE_SIZE + end)
 				{
 					end = end + MODIFIEDOBJECTS_PACKAGE_SIZE;

@@ -1899,6 +1899,7 @@ public class MainSearcher extends AMainSearcher
 			_dbCon.closeDB("aspect");
 			pdrObject.setAspectsLoaded(true);
 
+			// FIXME: kann nicht functionieren wenn mehr als ein aspekt zurueck kommt
 			return (PdrObject) saxHandler.getResultObject();
 		}
 
@@ -3227,6 +3228,8 @@ public class MainSearcher extends AMainSearcher
 			con.close();
 			_dbCon.closeDB("aspect");
 			setObjectsLoaded(objects);
+			// FIXME: statt aspekten werden einfach die references wieder zurueckgegeben was soll das
+			// FIXME aspekte muessen doch erst von saxHandler.getResultObject() geholt werden..!?
 			return objects;
 		}
 

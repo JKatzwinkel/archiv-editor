@@ -2223,7 +2223,8 @@ public class AspectsView extends ViewPart implements Observer, ISelectionProvide
 										Link person = new Link(rightcomp, SWT.NONE);
 										person.addSelectionListener(_aspectsSelectionAdapter);
 										person.setText("<a href=\"native\">" + name + "</a>");
-										person.setToolTipText(obj.getDisplayName());
+										if (obj != null) // attempt to fix #3949 missing person problem
+											person.setToolTipText(obj.getDisplayName()); // FIXME: #3949 nullpointer in this line
 										person.setData(id);
 										person.setBackground(WHITE_COLOR);
 										person.setLayoutData(new GridData());

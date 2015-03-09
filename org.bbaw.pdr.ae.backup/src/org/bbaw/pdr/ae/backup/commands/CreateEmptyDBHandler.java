@@ -89,8 +89,9 @@ public class CreateEmptyDBHandler implements IHandler
 	{
 		if (!_urChecker.isUserGuest())
 		{
-			ProgressMonitorDialog dialog = new ProgressMonitorDialog(HandlerUtil
-					.getActiveShell(event).getShell());
+			Shell activeShell = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell();
+			ProgressMonitorDialog dialog = new ProgressMonitorDialog(activeShell);
+			
 			try
 			{
 				dialog.run(true, true, new IRunnableWithProgress() {

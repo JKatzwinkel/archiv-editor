@@ -927,44 +927,37 @@ public class XMLProcessor implements XMLProcessorInterface
 			eventWriter.add(eventFactory.createEndElement(prefix, uri, "accessCondition"));
 
 		}
+		// if reference is part of series, write that into <relatedItem> element
 		if (r.getSeriesTitleInfo() != null)
 		{
 			StartElement sE = eventFactory.createStartElement(prefix, uri, "relatedItem");
 			eventWriter.add(sE);
 			eventWriter.add(eventFactory.createAttribute("type", "series"));
 
-			if (r.getSeriesTitleInfo() != null)
-			{
+			// XXX rodl_mods.xsd violates actual MODS by requiring TitleInfo to contain exactly
+			// one title element. FIXME: should this better be handled at repo sync?
+			// This conforms to that violation so nothing goes wrong:
+			if (r.getSeriesTitleInfo().getTitle() != null) {
+			
 				startElement = eventFactory.createStartElement(prefix, uri, "titleInfo");
 				eventWriter.add(startElement);
 
-				if (r.getSeriesTitleInfo() != null && r.getSeriesTitleInfo().getTitle() != null)
-				{
+				createNode(eventWriter, "title", r.getSeriesTitleInfo().getTitle(), prefix, uri);
 
-					createNode(eventWriter, "title", r.getSeriesTitleInfo().getTitle(), prefix, uri);
-
-				}
-				if (r.getSeriesTitleInfo() != null && r.getSeriesTitleInfo().getSubTitle() != null)
-				{
-
+				if (r.getSeriesTitleInfo().getSubTitle() != null)
 					createNode(eventWriter, "subTitle", r.getSeriesTitleInfo().getSubTitle(), prefix, uri);
 
-				}
-				if (r.getSeriesTitleInfo() != null && r.getSeriesTitleInfo().getPartNumber() != null)
-				{
+				if (r.getSeriesTitleInfo().getPartNumber() != null)
 					createNode(eventWriter, "partNumber", r.getSeriesTitleInfo().getPartNumber(), prefix, uri);
 
-				}
-				if (r.getSeriesTitleInfo() != null && r.getSeriesTitleInfo().getPartName() != null)
-				{
+				if (r.getSeriesTitleInfo().getPartName() != null)
 					createNode(eventWriter, "partName", r.getSeriesTitleInfo().getPartName(), prefix, uri);
 
-				}
 
 				eventWriter.add(eventFactory.createEndElement(prefix, uri, "titleInfo"));
 
-
 			}
+			
 			eventWriter.add(eventFactory.createEndElement(prefix, uri, "relatedItem"));
 
 		}
@@ -986,6 +979,7 @@ public class XMLProcessor implements XMLProcessorInterface
 				{
 					createNode(eventWriter, "part", relItem.getPart(), prefix, uri);
 				}
+				
 
 				eventWriter.add(eventFactory.createEndElement(prefix, uri, "relatedItem"));
 

@@ -599,7 +599,7 @@ public class LoginDialog extends TitleAreaDialog
 		else
 		{
 			_user = _facade.getCurrentUser();
-			if (_userName.equals(_user.getAuthentication().getUserName()))
+			if (_userName.equals(_user.getAuthentication().getUserName())) // FIXME: nullpointer in case 'modify user' dialog didn't work out recently
 			{
 				if (_userPassword.equals(_user.getAuthentication().getPassword()))
 				{
