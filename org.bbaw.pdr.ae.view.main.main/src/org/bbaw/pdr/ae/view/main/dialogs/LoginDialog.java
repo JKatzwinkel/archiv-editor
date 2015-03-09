@@ -42,7 +42,7 @@ import org.bbaw.pdr.ae.control.facade.Facade;
 import org.bbaw.pdr.ae.control.interfaces.IUpdateManager;
 import org.bbaw.pdr.ae.control.interfaces.IUserManager;
 import org.bbaw.pdr.ae.model.User;
-import org.bbaw.pdr.ae.view.control.dialogs.TimeoutProgressMonitorDialog;
+//import org.bbaw.pdr.ae.view.control.dialogs.TimeoutProgressMonitorDialog;
 import org.bbaw.pdr.ae.view.main.internal.Activator;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -501,7 +501,7 @@ public class LoginDialog extends TitleAreaDialog
 		}
 		if (!usersInitialized)
 		{
-			TimeoutProgressMonitorDialog dialog = new TimeoutProgressMonitorDialog(this.getShell(), 10000);
+			ProgressMonitorDialog dialog = new ProgressMonitorDialog(this.getShell());
 			dialog.setCancelable(false);
 
 			try

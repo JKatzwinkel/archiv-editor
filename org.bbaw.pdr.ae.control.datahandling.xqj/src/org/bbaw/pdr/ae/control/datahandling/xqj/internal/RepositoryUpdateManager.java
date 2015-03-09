@@ -33,17 +33,11 @@
 package org.bbaw.pdr.ae.control.datahandling.xqj.internal;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.text.ParseException;
 import java.util.Collections;
 import java.util.Date;
@@ -76,8 +70,6 @@ import javax.xml.xquery.XQResultSequence;
 
 import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.common.CommonActivator;
-import org.bbaw.pdr.ae.common.ResourceLocator;
-import org.bbaw.pdr.ae.common.utils.CopyDirectory;
 import org.bbaw.pdr.ae.config.core.ConfigXMLProcessor;
 import org.bbaw.pdr.ae.config.core.DataDescSaxHandler;
 import org.bbaw.pdr.ae.config.model.DatatypeDesc;
@@ -105,23 +97,18 @@ import org.bbaw.pdr.allies.client.Identifier;
 import org.bbaw.pdr.allies.client.PDRType;
 import org.bbaw.pdr.allies.client.Repository;
 import org.bbaw.pdr.allies.client.Utilities;
-import org.bbaw.pdr.allies.error.InvalidIdentifierException;
-import org.bbaw.pdr.allies.error.PDRAlliesClientException;
-import org.eclipse.core.runtime.FileLocator;
+import org.bbaw.pdr.allies.client.error.InvalidIdentifierException;
+import org.bbaw.pdr.allies.client.error.PDRAlliesClientException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.IJobManager;
-import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.progress.UIJob;
-import org.osgi.framework.Bundle;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -176,15 +163,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/** The conflicting rep references. */
 	private Vector<String> _conflictingRepReferences = null;
-
-	/** The parsed aspect. */
-	private Aspect _parsedAspect;
-
-	/** The parsed person. */
-	private Person _parsedPerson;
-
-	/** The parsed reference. */
-	private ReferenceMods _parsedReference;
 
 	/** The revision pattern. */
 	private Pattern _revisionPattern = Pattern
@@ -929,7 +907,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			{
 				end = aspects.size();
 			}
-			List<String> subAspects = new Vector<String>(end);
+			Vector<String> subAspects = new Vector<String>(end);
 			for (int i = begin; i < end; i++)
 			{
 				String xml = aspects.get(i);
@@ -1140,7 +1118,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			{
 				end = references.size();
 			}
-			List<String> subReferences = new Vector<String>(end);
+			Vector<String> subReferences = new Vector<String>(end);
 			String ref;
 			for (int i = begin; i < end; i++)
 			{
@@ -2503,32 +2481,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	}
 
-	/**
-	 * Sets the parsed aspect.
-	 * @param parsedAspect the new parsed aspect
-	 */
-	public final void setParsedAspect(final Aspect parsedAspect)
-	{
-		this._parsedAspect = parsedAspect;
-	}
-
-	/**
-	 * Sets the parsed person.
-	 * @param parsedPerson the new parsed person
-	 */
-	public final void setParsedPerson(final Person parsedPerson)
-	{
-		this._parsedPerson = parsedPerson;
-	}
-
-	/**
-	 * Sets the parsed reference.
-	 * @param parsedReference the new parsed reference
-	 */
-	public void setParsedReference(final ReferenceMods parsedReference)
-	{
-		this._parsedReference = parsedReference;
-	}
 
 	@Override
 	public final IStatus updateAllData(final String userID, final String password, final IProgressMonitor monitor)
@@ -2550,7 +2502,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 				+ password);
 		iLogger.log(log);
 		boolean success = true;
-		boolean test;
 		// injest new objects
 		try
 		{

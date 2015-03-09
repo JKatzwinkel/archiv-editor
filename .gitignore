@@ -2,6 +2,7 @@
 bin/
 .svn/
 .metadata/org.bbaw.pdr.ae.common/baseXHOME
+.metadata
 .settings/
 org.bbaw.pdr.ae.standalone/org.bbaw.pdr.ae.featureProduct.product.launch
 
