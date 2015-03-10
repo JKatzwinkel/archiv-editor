@@ -135,8 +135,7 @@ public class QuickNewPersonHandler extends AbstractHandler implements IHandler
 			a.getSemanticDim().getSemanticStms().add(sStm);
 
 			String message = (NLMessages.getString("Commands_message_quick_person"));
-			AspectEditorDialog dialogAspect = new AspectEditorDialog(HandlerUtil.getActiveWorkbenchWindow(event)
-					.getShell(), p, a, message);
+			AspectEditorDialog dialogAspect = new AspectEditorDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), p, a, message);
 
 			if (dialogAspect.open() == 0)
 			{

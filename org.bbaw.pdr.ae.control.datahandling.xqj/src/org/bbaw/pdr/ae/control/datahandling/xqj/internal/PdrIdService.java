@@ -215,25 +215,20 @@ public class PdrIdService implements IPdrIdService
 	@Override
 	public final Vector<String> getModifiedPersonIds() throws Exception
 	{
-		String query = null;
-		query = "for $id in collection(\"management\")//pdrPo/modified/id\n" + "return $id/text()";
+		String query = "for $id in collection(\"management\")//pdrPo/modified/id\n" + "return $id/text()";
 		// System.out.println(query);
 		Vector<String> ids = new Vector<String>();
 		String id = null;
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			XQConnection con = _dbCon.getConnection();
 			XQPreparedExpression xqp;
 			xqp = con.prepareExpression(query);
-
 			XQResultSequence xqs = xqp.executeQuery();
 			// execute the XQuery Expression
 
-			while (xqs.next())
-			{
+			while (xqs.next()) {
 				id = xqs.getItemAsString(null);
-				if (id.matches("pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.\\d{9}") && !ids.contains(id))
-				{
+				if (id.matches("pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.\\d{9}") && !ids.contains(id)) {
 					ids.add(id);
 				}
 			}
@@ -667,6 +662,9 @@ public class PdrIdService implements IPdrIdService
 
 	@Override
 	public final void insertIdModifiedObject(final PdrId pdrId) throws Exception
+	// XXX reichlich dubios: wieso macht diese methode praktisch das gegenteil davon, was
+	// die gleichnamige methode fuer einen vektor von IDs macht?????
+	// Aha: wegen conflict resolution auf spaeter verschieben. deshalb musz die ID auf jeden fall als modified bekannt sein
 	{
 		boolean isNew;
 		synchronized (_dbCon)
@@ -684,6 +682,9 @@ public class PdrIdService implements IPdrIdService
 			con.close();
 		}
 
+		// wenn objekt nicht in der liste der neuen objekte steht, wird geguckt ob es
+		// in der liste der lokal modifizierten objekte steht
+		// XXX und wenn ja, kommt es da einfach nochmal rein???
 		if (!isNew)
 		{
 			boolean isModified = false;
@@ -707,7 +708,7 @@ public class PdrIdService implements IPdrIdService
 				synchronized (_dbCon)
 				{
 					con = _dbCon.getConnection();
-					xqp = con.prepareExpression(insert);
+					xqp = con.prepareExpression(insert); // save object to 'modified' collection in local DB
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
@@ -719,6 +720,10 @@ public class PdrIdService implements IPdrIdService
 	@Override
 	public final void insertIdModifiedObject(final Vector<String> modifiedIds, final String type) throws Exception
 	{
+		// alle als modifiziert gelisteten objekte (von den uebergebenen)
+		// werden in persistente collections kopiert und dann aus 
+		// der modified liste geloescht, gelten also fuerderhin als
+		// ohne lokale aenderungen?
 		String insert = "insert nodes  <modified> ";
 		for (String id : modifiedIds)
 		{

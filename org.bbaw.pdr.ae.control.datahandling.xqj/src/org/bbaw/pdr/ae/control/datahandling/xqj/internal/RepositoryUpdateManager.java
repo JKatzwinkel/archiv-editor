@@ -195,9 +195,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 	/** instance of PDRObjectDisplayNameProcessor. */
 	private PDRObjectDisplayNameProcessor _pdrDisplayNameProc = new PDRObjectDisplayNameProcessor();
 	/**
-	 * checks ids.
+	 * Takes a list of objects (which have been created locally after the most recent repo sync, i.e. which have only local IDs so far),
+	 * a map of local to global IDs retrieved by the server, and an ID to find the global mapping for.
+	 * Appends the hopefully found global ID for the specified ID and appends it to the passed vector of
+	 * resolved global IDs, which is then returned.  
 	 * @param objects updated objects.
-	 * @param id id
+	 * @param id id to find global mapping for
 	 * @param idMap map of ids from repository
 	 * @param begin begin index
 	 * @param modifiedIds modified ids
@@ -206,25 +209,23 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private Vector<String> checkModfiedIds(final Vector<String> objects, final Identifier id,
 			final Map<Identifier, Identifier> idMap, final int begin, final Vector<String> modifiedIds)
-			throws InvalidIdentifierException
-	{
+			throws InvalidIdentifierException {
 		// System.out.println("checkModfiedIds");
-		for (int i = 0; i <= begin && i < objects.size(); i++)
-		{
+		log(1, "Look up persistent global ID for local object "+id+" based on ID mapping provided by remote repo, amongst "+(objects.size()-begin)+" objects");
+		//log(1, "Number of global IDs collectd so far: "+modifiedIds.size());
+		for (int i = 0; i <= begin && i < objects.size(); i++) {
 			String s = objects.get(i);
-			if (s.contains(id.toString()))
-			{
+			if (s.contains(id.toString())) {
 				Identifier oldId = new Identifier(extractPdrId(s));
-				Identifier newId = idMap.get(oldId);
-				if (newId != null && modifiedIds.contains(newId.toString()))
-				{
+				Identifier newId = idMap.get(oldId); // look up persistent global ID mapping for old ID/local ID 
+				if (newId != null && !modifiedIds.contains(newId.toString())) { // XXX moment mal.. nicht eher !contains ?
 					modifiedIds.add(newId.toString());
-					System.out.println("inserting modified obj oldid " + oldId.toString() + " new " + newId.toString());
+					log(1, "inserting modified obj oldid " + oldId.toString() + " new " + newId.toString());
 				}
 			}
 		}
+		//log(1, "Updated number of global IDs for locally new objects: "+modifiedIds.size());
 		return modifiedIds;
-
 	}
 
 	/**
@@ -242,9 +243,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		String local = null;
 		try
 		{
-			System.out.println("checking version col " + col + " name " + name);
+			//System.out.println("checking version col " + col + " name " + name);
 			local = _mainSearcher.searchObjectString(col, name);
-			System.out.println("checking version local " + local);
+			log(1, "Compare object versions:\nlocal:  " + local+"\nremote: "+repo);
 		}
 		catch (XQException e)
 		{
@@ -371,107 +372,83 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Gets the modified config.
+	 * Try to get a list of the remote's category providers. Use local providers
+	 * on failure. Proceed to query remote repo for each provider's respective classification categories.
+	 * Save those classification categories to local DB.
 	 * @throws Exception
 	 */
-	private void getModifiedConfig() throws Exception
-	{
+	private void getModifiedConfig() throws Exception {
+		// XXX sollten wir hier nicht mal irgendwo ne exception werfen?
 		List<String> providers = null;
 		try {
+			log(1, "Attempt to retrieve remote category providers");
 			providers = Utilities.getCategoryProviders();
+			log(0, "Retrieved "+providers.size()+" category providers from repo");
 		} catch (Exception e2) {
-			// TODO Auto-generated catch block
-			e2.printStackTrace();
+			log(2, "Retrieval of remote category providers failed: ", e2);
 		}
-		if (providers == null)
-		{
+		if (providers == null) {
+			log(1, "No category providers could be retrieved. Use local provider information instead.");
 			providers = new Vector<String>();
 			for (String provider :  _facade.getConfigs().keySet())
-			{
 				providers.add(provider);
-			}
 		}
-		for (String provider :  providers)
-		{
+		for (String provider :  providers) {
 			String modifiedConfig = null;
-			try
-			{
+			try {
+				log(1, "Try to retrieve remote categories configuration for provider "+provider);
 				modifiedConfig = Utilities.getCategories(provider);
 				if (modifiedConfig != null && modifiedConfig.trim().length() > 0
-						&& !modifiedConfig.contains("file not found"))
-				{
+						&& !modifiedConfig.contains("file not found")) {
 					SAXParserFactory factory = SAXParserFactory.newInstance();
 					ConfigManager configManager = new ConfigManager();
-					try
-					{
-
+					try {
+						log(1, "Set up XML and SAX processors for configuration element");
+						// init XML/SAX processors for category configuration element read-in
 						InputStream xmlInput = new ByteArrayInputStream(modifiedConfig.getBytes("UTF-8"));
 						SAXParser saxParser = factory.newSAXParser();
-
+						// XXX custom parser for configration elements
 						DataDescSaxHandler handler = new DataDescSaxHandler(configManager);
 						XMLReader reader = saxParser.getXMLReader();
-						try
-						{
+						try {
+							log(1, "Initialize XML reader");
 							// Turn on validation
 							reader.setFeature("http://xml.org/sax/features/validation", true); //$NON-NLS-1$
 							// Ensure namespace processing is on (the default)
 							reader.setFeature("http://xml.org/sax/features/namespaces", true); //$NON-NLS-1$
-						}
-						catch (SAXNotRecognizedException e)
-						{
-							log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-						}
-						catch (SAXNotSupportedException e)
-						{
-							log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
+						} catch (Exception e) {
+							log(2, "Parser could not be initialized: ", e);
 						}
 
+						log(1, "Parse XML serialization of modified configuration");
 						saxParser.parse(xmlInput, handler);
+					} catch (Throwable err)	{
+						log(2, "Import of category configuration object XML failed: ", err);
+					}
 
-					}
-					catch (Throwable err)
-					{
-						err.printStackTrace();
-					}
 					DatatypeDesc dtd = configManager.getDatatypeDesc();
-					if (dtd != null && dtd.isValid())
-					{
+					if (dtd != null && dtd.isValid()) {
 						if (dtd.getProvider() != null
 								&& dtd.getProvider().equals(
 										Platform.getPreferencesService()
 												.getString(CommonActivator.PLUGIN_ID, "PRIMARY_SEMANTIC_PROVIDER",
 														AEConstants.CLASSIFICATION_AUTHORITY, null)))
 						{
-
+							// TODO: huh?
 						}
-						try
-						{
+						try	{
+							log(1, "Save configurations to local database");
 							_configManager.saveConfig(dtd);
-						}
-						catch (XMLStreamException e)
-						{
-							log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-						catch (XQException e)
-						{
-							log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-							e.printStackTrace();
+						} catch (Exception e)	{
+							log(2, "Saving configurations to local database failed: ", e);
 						}
 					}
 				}
-			}
-			catch (PDRAlliesClientException e1)
-			{
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
+			} catch (PDRAlliesClientException e1) {
+				log = new Status(2, Activator.PLUGIN_ID, "ALLIES Exception during remote configuration retrieval for provider "+provider, e1);
 				iLogger.log(log);
 				e1.printStackTrace();
 			}
-
 		}
 
 	}
@@ -482,18 +459,22 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private Vector<String> getModifiedPersons() throws Exception
-	{
-		Vector<String> modifiedIds = _idService.getModifiedPersonIds();
+	private Vector<String> getModifiedPersons() throws Exception {
+		Vector<String> modifiedIds = _idService.getModifiedPersonIds(); // get locally modified person objects (XML)
+		log(1, "Number of person objects with local modifications = "+modifiedIds.size());
 		Vector<String> modifiedPersons = new Vector<String>(modifiedIds.size());
 		String personString;
 
-		for (String id : modifiedIds)
-		{
+		for (String id : modifiedIds) {
 			personString = _mainSearcher.searchObjectString("person", id);
-
-			personString = removePersonPrefix(personString);
-			modifiedPersons.add(personString);
+			try {
+				personString = removePersonPrefix(personString); // remove podl nx prefixes in XML
+				modifiedPersons.add(personString);
+			} catch (Exception e) {
+				if (personString == null)
+					log(2, "Person not found");
+				log(2, "Couldn't load modified person object ["+id+"] from local DB: ", e);
+			}
 		}
 		return modifiedPersons;
 	}
@@ -542,7 +523,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (u != null)
 			{
 				userString = userXMLProc.writeToXML(u);
-				userString = removeUserPrefix(userString);
+				userString = removeUserPrefix(userString); // oudl ns prefixes are removed
 				modifiedUsers.add(userString);
 			}
 		}
@@ -599,89 +580,61 @@ public class RepositoryUpdateManager implements IUpdateManager
 					InputStream is;
 					SAXParserFactory factory = SAXParserFactory.newInstance();
 					SAXParser saxParser = null;
-					try
-					{
+					try	{
 						saxParser = factory.newSAXParser();
-					}
-					catch (ParserConfigurationException e1)
-					{
-						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-						iLogger.log(log);
-						e1.printStackTrace();
-					}
-					catch (SAXException e1)
-					{
-						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
+					} catch (Exception e1) {
+						log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Init of SAX parser failed ", e1);
 						iLogger.log(log);
 						e1.printStackTrace();
 					}
 
-					if (_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty())
-					{
-						AspectSaxHandler handler = new AspectSaxHandler(new PdrObject[]
-						{}, monitor);
+					// PREPARE ASPECT CONFLICT RESOLUTION
+					if (_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty()) {
+						log(1, "Number of aspect object conflicts: "+_conflictingRepAspects.size());
+						AspectSaxHandler handler = new AspectSaxHandler(new PdrObject[]	{}, monitor);
 						conAspects = new Vector<PDRObjectsConflict>(_conflictingRepAspects.size());
-						for (String s : _conflictingRepAspects)
-						{
+						for (String s : _conflictingRepAspects)	{
 							id = extractPdrId(s);
-							if (saxParser != null)
-							{
-								try
-								{
+							if (saxParser != null) {
+								try {
 									is = new ByteArrayInputStream(s.getBytes("UTF-8"));
 									saxParser.parse(is, handler);
 									oConflict = new PDRObjectsConflict();
+									// TODO: koennte schiefgehen, wenn resultobject mehrere sind!
 									Aspect parsedAspect = (Aspect) handler.getResultObject();
-									if (parsedAspect != null)
-									{
+									if (parsedAspect != null) {
 										_pdrDisplayNameProc.processDisplayName(parsedAspect);
 										oConflict.setRepositoryObject(parsedAspect);
 									}
 									parsedAspect = null;
 									oConflict.setLocalObject(_facade.getAspect(new PdrId(id)));
 									conAspects.add(oConflict);
-								}
-								catch (UnsupportedEncodingException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
-								}
-								catch (SAXException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
-								}
-								catch (IOException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
+									log(1, "Prepare conflict resolution for aspect "+id);
+								} catch (Exception e) {
+									log(2, "Conflict res preparation failed for aspect "+id, e);
 								}
 							}
-
 						}
+						log(1, "Scheduled "+conAspects.size()+" resolutions. Total number of conflicts: "+_conflictingRepAspects);
 					}
-					if (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty())
-					{
+					
+					// PREPARE PERSON CONFLICT RESOLUTION
+					if (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty()) {
+						log(1, "Number of person object conflicts: "+_conflictingRepPersons.size());
 						conPersons = new Vector<PDRObjectsConflict>(_conflictingRepPersons.size());
 						PersonSaxHandler handler = new PersonSaxHandler();
-						for (String s : _conflictingRepPersons)
-						{
+						for (String s : _conflictingRepPersons)	{
 							id = extractPdrId(s);
-							if (saxParser != null)
-							{
-								try
-								{
+							if (saxParser != null)	{
+								try	{
 									is = new ByteArrayInputStream(s.getBytes("UTF-8"));
 									saxParser.parse(is, handler);
 									oConflict = new PDRObjectsConflict();
 									Object o = handler.getResultObject();
 									Person parsedPerson = null;
-									if (o instanceof Person) parsedPerson = (Person) o;
-									else
-									{
+									if (o instanceof Person) {
+										parsedPerson = (Person) o;
+									} else { // aha: problem mehrerer rueckgaben wird behandelt!
 										Map<PdrId, Person> persons = (Map<PdrId, Person>) o;
 										for (Person p : persons.values())
 										{
@@ -689,59 +642,38 @@ public class RepositoryUpdateManager implements IUpdateManager
 											break;
 										}
 									}
-									 
-									
-									if (parsedPerson != null)
-									{
+									if (parsedPerson != null) {
 										_pdrDisplayNameProc.processDisplayName(parsedPerson);
 										oConflict.setRepositoryObject(parsedPerson);
 									}
 									parsedPerson = null;
 									oConflict.setLocalObject(_facade.getPdrObject(new PdrId(id)));
 									conPersons.add(oConflict);
-								}
-								catch (UnsupportedEncodingException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
-								}
-								catch (SAXException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
-								}
-								catch (IOException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
+									log(1, "Prepare conflict resolution for person "+id);
+								} catch (Exception e) {
+									log(2, "Conflict resolution prep failed for person "+id, e);
 								}
 							}
-
+							log(1, "Scheduled "+conPersons.size()+" resolutions. Total number of conflicts: "+_conflictingRepPersons);
 						}
 					}
-					if (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty())
-					{
+					
+					// PREPARE REFERENCE CONFLICT RESOLUTION
+					if (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty()) {
 					     // XXX this might fix nullpointer problem of issue 3132
-					     PDRObjectDisplayNameProcessor dnp = new PDRObjectDisplayNameProcessor();
-						
+						PDRObjectDisplayNameProcessor dnp = new PDRObjectDisplayNameProcessor();
+						log(1, "Number of reference object conflicts: "+_conflictingRepReferences.size());
 						conReferences = new Vector<PDRObjectsConflict>(_conflictingRepReferences.size());
 						ReferenceSaxHandler handler = new ReferenceSaxHandler();
-						for (String s : _conflictingRepReferences)
-						{
+						for (String s : _conflictingRepReferences) {
 							id = extractPdrId(s);
-							if (saxParser != null)
-							{
-								try
-								{
+							if (saxParser != null) {
+								try	{
 									is = new ByteArrayInputStream(s.getBytes("UTF-8"));
 									saxParser.parse(is, handler);
 									oConflict = new PDRObjectsConflict();
 									ReferenceMods parsedReference = (ReferenceMods) handler.getResultObject();
-									if (parsedReference != null)
-									{
+									if (parsedReference != null) {
 										/*_pdrDisplayNameProc.processDisplayName(parsedReference);
 										_pdrDisplayNameProc.processDisplayNameLong(parsedReference);
 										oConflict.setRepositoryObject(parsedReference);*/
@@ -752,133 +684,74 @@ public class RepositoryUpdateManager implements IUpdateManager
 									parsedReference = null;
 									oConflict.setLocalObject(_facade.getReference(new PdrId(id)));
 									conReferences.add(oConflict);
-								}
-								catch (UnsupportedEncodingException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
-								}
-								catch (SAXException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
-								}
-								catch (IOException e)
-								{
-									log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-									iLogger.log(log);
-									e.printStackTrace();
+									log(1, "Prepare conflict resolution for reference "+id);
+								} catch (Exception e) {
+									log(2, "Conflict resolution prep failed for reference "+id, e);
 								}
 							}
-
+							log(1, "Scheduled "+conReferences.size()+" resolutions. Total number of conflicts: "+_conflictingRepReferences);
 						}
 					}
 
-					 IWorkbench workbench = PlatformUI.getWorkbench();
-					 Display display = workbench.getDisplay();
-					 Shell shell = new Shell(display);
-							UpdateConflictDialog dialog = new UpdateConflictDialog(shell, conAspects, conPersons, conReferences); //$NON-NLS-1$
-					 if (dialog.open() == 0)  // FIXME dialog GUI creation does not go well because of messed up reference obj
-					 {
-					 int totalWork = 0;
-					 if (conAspects != null) totalWork = conAspects.size();
-					 if (conPersons != null) totalWork = totalWork + conPersons.size();
-					 if (conReferences != null) totalWork = totalWork +
-					 conReferences.size();
-					 monitor.beginTask("Resolving Update Conflicts. Number of Objects: " +
-					 totalWork, totalWork);
-					
-					 try {
+					// conflict resolution dialog
+					log(1, "Open Conflict Resolution Dialog.");
+					IWorkbench workbench = PlatformUI.getWorkbench();
+					Display display = workbench.getDisplay();
+					Shell shell = new Shell(display);
+					UpdateConflictDialog dialog = new UpdateConflictDialog(shell, conAspects, conPersons, conReferences); //$NON-NLS-1$
+					if (dialog.open() == 0)  {// FIXME dialog GUI creation does not go well because of messed up reference obj
+					 
+						int totalWork = 0;
+						if (conAspects != null) totalWork = conAspects.size();
+						if (conPersons != null) totalWork = totalWork + conPersons.size();
+						if (conReferences != null) totalWork = totalWork + conReferences.size();
+						monitor.beginTask("Resolving Update Conflicts. Number of Objects: " + totalWork, totalWork);
+						
+						try {
 							_idService.clearAllUpdateStates();
 						} catch (Exception e) {
-							log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-							e.printStackTrace();
+							log(2, "Could not clear update states of local objects: ", e);
 						}
-					 if (conAspects != null && !conAspects.isEmpty())
-					 try {
-					 insertConflictingObjects(conAspects, monitor);
-					 } catch (XMLStreamException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-						 e.printStackTrace();
-					 } catch (UnsupportedEncodingException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-						 e.printStackTrace();
-					 } catch (PDRAlliesClientException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-						 e.printStackTrace();
-					 } catch (XQException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-					 e.printStackTrace();
-					 } catch (Exception e) {
-
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-					}
-					 if (conPersons != null && !conPersons.isEmpty())
-					 try {
-					 insertConflictingObjects(conPersons, monitor);
-					 } catch (XMLStreamException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-					 } catch (UnsupportedEncodingException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-					 } catch (PDRAlliesClientException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-					 } catch (XQException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-					 } catch (Exception e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					}
-					 if (conReferences != null && !conReferences.isEmpty())
-					 try {
-					 insertConflictingObjects(conReferences, monitor);
-					 } catch (XMLStreamException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);
-					 } catch (UnsupportedEncodingException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-					 } catch (PDRAlliesClientException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-					 } catch (XQException e) {
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);					
-					 } catch (Exception e) {
-
-						 log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-							iLogger.log(log);}
+						if (conAspects != null && !conAspects.isEmpty())
+							try {
+								// resolve aspects conflicts by either overwriting local or remote
+								// version or by prosponing resolution
+								insertConflictingObjects(conAspects, monitor);
+							} catch (Exception e) {
+								log(2, "Resolution of aspect object conflicts failed: ", e);
+							} 
+						 if (conPersons != null && !conPersons.isEmpty())
+							 try {
+								 // resolve PERSON conflicts by overwrite one way or another or by prosponing
+								 insertConflictingObjects(conPersons, monitor);
+							 } catch (Exception e) {
+								 log(2, "Resolution of person object conflicts failed: ", e);
+							 } 
+						 if (conReferences != null && !conReferences.isEmpty())
+							 try {
+								 // resolve reference conflicts just like aspects and persons
+								 insertConflictingObjects(conReferences, monitor);
+							 } catch (Exception e) {
+								log(2, "Resolution of reference object conflicts failed: ", e);
+							 }
 					 }
-			
-					 _facade.refreshAllData();
+				// no matter how conflict dialog went:
+				// refresh all pdr object information in facade; reload entirely from DB?
+				_facade.refreshAllData();
 
-			 return Status.OK_STATUS;
-			 }
-			 };
+				return Status.OK_STATUS;
+			 }};
 			 job.setUser(true);
 //			 IJobManager manager = Job.getJobManager();
 //			manager.currentJob().
 			 job.schedule();
 			 try {
 				job.join();
-			} catch (InterruptedException e) {
-
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+			 } catch (InterruptedException e) {
+				log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Conflict resolution UI job failed: ", e);
 				iLogger.log(log);
-				}
-
-		
-
+				e.printStackTrace();
+			}
 	}
 
 	/**
@@ -891,87 +764,60 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private void injestModifiedAspects(final IProgressMonitor monitor) throws Exception
 	{
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			_conflictingRepAspects = new Vector<String>();
 			List<String> subConflRepAspects = new Vector<String>();
-			List<String> aspects = getModifiedAspects();
+			List<String> aspects = getModifiedAspects(); // without aodl prefixes
 			if (aspects.size() == 0)
-			{
 				return;
-			}
+			log(1, "Begin to ingest "+aspects.size()+" modified aspect objects from local DB into remote repo");
 			monitor.beginTask("Injesting Modified Aspects into Repository. Number of Objects: " + aspects.size(),
 					aspects.size());
 
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE)
-			{
-				end = MODIFIEDOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = aspects.size();
-			}
+			int end = (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE) ? MODIFIEDOBJECTS_PACKAGE_SIZE : aspects.size();  
 			Vector<String> subAspects = new Vector<String>(end);
-			for (int i = begin; i < end; i++)
-			{
+			for (int i = begin; i < end; i++) {
 				String xml = aspects.get(i);
-				if (isValidXMLAspect(xml))
-				{
-					subAspects.add(xml);
-				}
-				else
-				{
+				if (!isValidXMLAspect(xml)) {
 					String xml2 = makeValidXMLAspect(xml);
-					if (xml2 != null)
-					{
-						subAspects.add(xml2);
-					}
-				}
+					if (xml2 != null) {
+						subAspects.add(xml);
+					} else
+						log(2, "Invalid aspect: "+xml);
+				} else
+					subAspects.add(xml);
 			}
-			while (subAspects != null && !subAspects.isEmpty())
-			{
-//				for (String s : subAspects)
-//				{
-//					// System.out.println("Aspect: " + s);
-//				}
-
+			// push until done
+			while (subAspects != null && !subAspects.isEmpty())	{
+				log(1, "Push "+subAspects.size()+" aspect objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
+				for (String xml : subAspects)
+					System.out.println(xml);
 				subConflRepAspects = Repository.modifyObjects(_repositoryId, _projectId, subAspects, false);
-				if (subConflRepAspects != null && !subConflRepAspects.isEmpty())
-				{
+				if (subConflRepAspects != null && !subConflRepAspects.isEmpty()) {
+					log(1, ""+subConflRepAspects.size()+" new conflicts");
 					_conflictingRepAspects.addAll(subConflRepAspects);
 				}
 				monitor.worked(subAspects.size());
 				begin = end + 1; // FIXME: fehlt da nicht einer?
-				if (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + MODIFIEDOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = aspects.size();
-				}
+				end = (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE + end) ? (end + MODIFIEDOBJECTS_PACKAGE_SIZE) :aspects.size();
+				counter += subAspects.size();
 				subAspects.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					String xml = aspects.get(i);
-					if (isValidXMLAspect(xml))
-					{
-						subAspects.add(xml);
-					}
-					else
-					{
+					if (!isValidXMLAspect(xml)) {
 						String xml2 = makeValidXMLAspect(xml);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subAspects.add(xml);
-						}
-					}
+						} else
+							log(2, "Invalid aspect: "+xml);
+					} else
+						subAspects.add(xml);
 				}
-
 			}
+			log(0, "Done pushing modified aspects objects. Total number of pushed aspects: "+counter+" (modified aspects: "+aspects.size()+")");
 		}
 	}
 
@@ -1010,85 +856,67 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void injestModifiedPersons(final IProgressMonitor monitor) throws Exception
-	{
-		synchronized (_dbCon)
-		{
+	private void injestModifiedPersons(final IProgressMonitor monitor) throws Exception {
+		// XXX: vielleicht die confligierenden objekte lieber als return value statt global?
+		synchronized (_dbCon) {
 			_conflictingRepPersons = new Vector<String>();
 			List<String> subConflictingPersons = new Vector<String>();
 			List<String> persons = getModifiedPersons();
 			if (persons.size() == 0)
-			{
 				return;
-			}
+			log(1, "Begin to ingest "+persons.size()+" modified person objects from local DB");
 			monitor.beginTask("Injesting Modified Persons into Repository. Number of Objects: " + persons.size(),
 					persons.size());
 
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (persons.size() > NEWOBJECTS_PACKAGE_SIZE)
-			{
-				end = NEWOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = persons.size();
-			}
+			int end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : persons.size();
+			
 			Vector<String> subPersons = new Vector<String>(end);
-			for (int i = begin; i < end; i++)
-			{
+			// iterate over first chunk of person objects
+			for (int i = begin; i < end; i++) {
 				String xml = persons.get(i);
-				if (isValidXMLPerson(xml))
-				{
-					subPersons.add(xml);
-				}
-				else
-				{
+				if (!isValidXMLPerson(xml)) {
 					String xml2 = makeValidXMLPerson(xml);
-					if (xml2 != null)
-					{
+					if (xml2 != null) {
 						subPersons.add(xml2);
-					}
-				}
+					} else
+						log(2, "Invalid person object: "+xml);
+				} else
+					subPersons.add(xml);
 			}
-			while (subPersons != null && !subPersons.isEmpty())
-			{
+			
+			// keep pushing and chunking until no modified person remains
+			while (subPersons != null && !subPersons.isEmpty())	{
+				log(1, "Push "+subPersons.size()+" person objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
+				for (String xml : subPersons)
+					System.out.println(xml);
 				subConflictingPersons = Repository.modifyObjects(_repositoryId, _projectId, subPersons, false);
-				if (subConflictingPersons != null && !subConflictingPersons.isEmpty())
-				{
+				if (subConflictingPersons != null && !subConflictingPersons.isEmpty()) {
+					log(1, ""+subConflictingPersons.size()+" new conflicts");
 					_conflictingRepPersons.addAll(subConflictingPersons);
 				}
 				monitor.worked(subPersons.size());
+				// proceed to next chunk
 				begin = end + 1; // FIXME fehlt da nicht einer?
-				if (persons.size() > NEWOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + NEWOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = persons.size();
-				}
+				end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE+end) ? (end+NEWOBJECTS_PACKAGE_SIZE) : persons.size();
+				counter += subPersons.size();
 				subPersons.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					String xml = persons.get(i);
-					if (isValidXMLPerson(xml))
-					{
-						subPersons.add(xml);
-					}
-					else
-					{
+					if (!isValidXMLPerson(xml)) {
 						String xml2 = makeValidXMLPerson(xml);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subPersons.add(xml2);
-						}
-					}
+						} else
+							log(2, "Invalid person object: "+xml);
+					} else
+						subPersons.add(xml);
 				}
 			}
+			log(0, "Done pushing modified person objects. Total number of pushed persons: "+counter+" (modified persons: "+persons.size()+")");
 		}
-
 	}
 
 	/**
@@ -1099,91 +927,68 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void injestModifiedReferences(final IProgressMonitor monitor) throws Exception
-	{
-		synchronized (_dbCon)
-		{
+	private void injestModifiedReferences(final IProgressMonitor monitor) throws Exception {
+		synchronized (_dbCon) {
 			_conflictingRepReferences = new Vector<String>();
 
 			List<String> subConflictingRefs = new Vector<String>();
 			List<String> references = getModifiedReferences();
 			if (references.size() == 0)
-			{
 				return;
-			}
+			log(1, "Loaded "+references.size()+" modified reference objects from local DB");
 			monitor.beginTask("Injesting Modified References into Repository. Number of Objects: " + references.size(),
 					references.size());
 
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (references.size() > NEWOBJECTS_PACKAGE_SIZE)
-			{
-				end = NEWOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = references.size();
-			}
+			int end = (references.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : references.size();
+			// prepare first chunk of reference objects for submission
 			Vector<String> subReferences = new Vector<String>(end);
 			String ref;
-			for (int i = begin; i < end; i++)
-			{
+			for (int i = begin; i < end; i++) {
 				ref = references.get(i);
-				ref = removeRefPrefix(ref);
-				if (isValidXMLReference(ref))
-				{
-					subReferences.add(ref);
-				}
-				else
-				{
+				ref = removeRefPrefix(ref); // remove mods ns prefixes XXX warum nicht in getmodifiedreferences?
+				if (!isValidXMLReference(ref)) {
 					String xml2 = makeValidXMLReference(ref);
-					if (xml2 != null)
-					{
+					if (xml2 != null) {
 						subReferences.add(xml2);
-					}
-				}
-				
+					} else
+						log(2, "Invalid reference object: "+ref);
+				} else
+					subReferences.add(ref);
 			}
-			while (subReferences != null && !subReferences.isEmpty())
-			{
+			
+			// keep on pushing and chunking until all reference objects have been sent to repo
+			while (subReferences != null && !subReferences.isEmpty()) {
 				// FIXME: SOAP fault
+				log(1, "Push "+subReferences.size()+" reference objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				subConflictingRefs = Repository.modifyObjects(_repositoryId, _projectId, subReferences, false);
-				if (subConflictingRefs != null && !subConflictingRefs.isEmpty())
-				{
+				if (subConflictingRefs != null && !subConflictingRefs.isEmpty()) {
+					log(1, ""+subConflictingRefs.size()+" new conflicts");
 					_conflictingRepReferences.addAll(subConflictingRefs);
 				}
 				monitor.worked(subReferences.size());
+				// proceed to next chunk
 				begin = end + 1; // FIXME: faellt hier nicht einer unter den tisch?
-				if (references.size() > NEWOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + NEWOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = references.size();
-				}
+				end = (references.size() > NEWOBJECTS_PACKAGE_SIZE+end) ? (end+NEWOBJECTS_PACKAGE_SIZE) : references.size();   
+				counter += subReferences.size();
 				subReferences.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					ref = references.get(i);
 					ref = removeRefPrefix(ref);
-					if (isValidXMLReference(ref))
-					{
-						subReferences.add(ref);
-					}
-					else
-					{
+					if (!isValidXMLReference(ref)) {
 						String xml2 = makeValidXMLReference(ref);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subReferences.add(xml2);
-						}
-					}
+						} else
+							log(2, "Invalid reference object: "+ref);
+					} else
+						subReferences.add(ref);
 				}
 			}
+			log(0, "Done pushing modified reference objects. Total number of pushed references: "+counter);
 		}
-
 	}
 
 	/**
@@ -1193,71 +998,49 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private final void injestModifiedUsers() throws Exception
-	{
-		synchronized (_dbCon)
-		{
-			Vector<String> users = getModifiedUsers();
+	private final void injestModifiedUsers() throws Exception {
+		synchronized (_dbCon) {
+			Vector<String> users = getModifiedUsers(); // without uodl ns prefixes
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (users.size() > MODIFIEDOBJECTS_PACKAGE_SIZE)
-			{
-				end = MODIFIEDOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = users.size();
-			}
+			int end = (users.size() > MODIFIEDOBJECTS_PACKAGE_SIZE) ? MODIFIEDOBJECTS_PACKAGE_SIZE : users.size();
 			Vector<String> subUsers = new Vector<String>(end);
-			for (int i = begin; i < end; i++)
-			{
+			for (int i = begin; i < end; i++) {
 				String xml = users.get(i);
-				if (isValidXMLUser(xml))
-				{
-					subUsers.add(xml);
-				}
-				else
-				{
+				if (!isValidXMLUser(xml)) {
 					String xml2 = makeValidXMLUser(xml);
-					if (xml2 != null)
-					{
+					if (xml2 != null) {
 						subUsers.add(xml2);
-					}
-				}
+					} else
+						log(2, "Invalid user object: "+xml);
+				} else
+					subUsers.add(xml);
 			}
-			while (subUsers != null && !subUsers.isEmpty())
-			{
+			
+			// push and chunk until no user remains unknown to the remote
+			while (subUsers != null && !subUsers.isEmpty()) {
+				log(1, "Push "+subUsers.size()+" user objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				Repository.modifyObjects(_repositoryId, _projectId, subUsers, true);
+				// XXX: kein conflict handling???
 				begin = end + 1; //FIXME fehlt da nicht einer?
-				if (users.size() > MODIFIEDOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + MODIFIEDOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = users.size();
-				}
+				end = (users.size() > MODIFIEDOBJECTS_PACKAGE_SIZE+end) ? (end + MODIFIEDOBJECTS_PACKAGE_SIZE) : users.size();  
+				counter += subUsers.size();
 				subUsers.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					String xml = users.get(i);
-					if (isValidXMLUser(xml))
-					{
-						subUsers.add(xml);
-					}
-					else
-					{
+					if (!isValidXMLUser(xml)) {
 						String xml2 = makeValidXMLUser(xml);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subUsers.add(xml2);
-						}
-					}
+						} else
+							log(2, "Invalid user object: "+xml);
+					} else
+						subUsers.add(xml);
 				}
 			}
+			log(0, "Done pushing modified user objects. Total number of pushed users: "+counter);
 		}
-
 	}
 
 	/**
@@ -1270,136 +1053,104 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private void injestNewAspects(final IProgressMonitor monitor) throws Exception
 	{
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			Vector<String> aspects = new Vector<String>();
-
-			for (String s : _mainSearcher.getNewAspects())
-			{
-				s = removeAspectPrefixes(s);
+			for (String s : _mainSearcher.getNewAspects()) {
+				s = removeAspectPrefixes(s); // remove aodl prefix from xml
 				aspects.add(s);
 			}
 			if (aspects.size() == 0)
-			{
 				return;
-			}
+			log(1, "Begin ingest of "+aspects.size()+" NEW aspect objects from local DB into remote repo");
 			monitor.beginTask("Injesting new Aspects into Repository. Number of Objects: " + aspects.size(),
 					aspects.size());
 
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (aspects.size() > NEWOBJECTS_PACKAGE_SIZE)
-			{
-				end = NEWOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = aspects.size();
-			}
+			int end = (aspects.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : aspects.size();
 			Vector<String> subAspects = new Vector<String>(end);
 			Vector<String> modifiedAspectIds = new Vector<String>();
-			for (int i = begin; i < end; i++)
-			{
+			for (int i = begin; i < end; i++) {
 				String xml = aspects.get(i);
-				if (isValidXMLAspect(xml))
-				{
-					subAspects.add(xml);
-				}
-				else
-				{
+				if (!isValidXMLAspect(xml)) {
 					String xml2 = makeValidXMLAspect(xml);
-					if (xml2 != null)
-					{
+					if (xml2 != null) {
 						subAspects.add(xml);
-					}
-				}
+					} else
+						log(2, "Invalid aspect: "+xml);
+				} else
+					subAspects.add(xml);
 			}
-			while (subAspects != null && !subAspects.isEmpty())
-			{
+			// push'n'chunk until done
+			while (subAspects != null && !subAspects.isEmpty()) {
+				log(1, "Push "+subAspects.size()+" NEW aodl objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subAspects);
 
-				if (!idMap.isEmpty())
-				{
+				if (!idMap.isEmpty()) {
 					String newID;
-					for (Identifier id : idMap.keySet())
-					{
+					for (Identifier id : idMap.keySet()) {
 						newID = idMap.get(id).toString();
 						modifiedAspectIds = checkModfiedIds(aspects, id, idMap, begin, modifiedAspectIds);
 						resetObjectId(id, newID, 1);
 					}
 				}
 				monitor.worked(subAspects.size());
-				begin = end;
-				if (aspects.size() > NEWOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + NEWOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = aspects.size();
-				}
+				begin = end; // ok
+				end = (aspects.size() > NEWOBJECTS_PACKAGE_SIZE + end) ? (end + NEWOBJECTS_PACKAGE_SIZE) : aspects.size();
+				counter += subAspects.size();
 				subAspects.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					String xml = aspects.get(i);
-					if (isValidXMLAspect(xml))
-					{
-						subAspects.add(xml);
-					}
-					else
-					{
+					if (!isValidXMLAspect(xml)) {
 						String xml2 = makeValidXMLAspect(xml);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subAspects.add(xml);
-						}
-					}
+						} else
+							log(2, "Invalid aspect: "+xml);
+					} else
+						subAspects.add(xml);
 				}
 			}
-			System.out.println("modifiedAspectIds size " + modifiedAspectIds.size());
+			//System.out.println("modifiedAspectIds size " + modifiedAspectIds.size());
 			if (modifiedAspectIds != null && !modifiedAspectIds.isEmpty())
-			{
 				_idService.insertIdModifiedObject(modifiedAspectIds, "pdrAo");
-			}
+			log(0, "Done pushing NEW aodl objects. Total number of pushed aspects: "+counter+"\n(out of "+aspects.size()+" new objects, server returned "+modifiedAspectIds.size()+" global IDs)");
 		}
 	}
 
 
+	/**
+	 * Take XML aspect object, extract ID, lookup actual aspect under ID,
+	 * write aspect to XML. 
+	 * @param xml
+	 * @return
+	 */
 	private String makeValidXMLAspect(String xml) {
 		// check input
 		boolean isValid = isValidXMLAspect(xml);
 		
-		if (!isValid)
-		{
+		if (!isValid) {
 			String id = extractPdrId(xml);
 			Aspect a = _facade.getAspect(new PdrId(id));
 			String xml2 = "";
 			try {
 				xml2 = _xmlProc.writeToXML(a);
 			} catch (XMLStreamException e) {
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+				log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to write XML for aspect "+a.getDisplayNameWithID(), e);
 				iLogger.log(log);
 				return null;
 			}
-			if (isValidXMLAspect(xml2))
-			{
+			if (isValidXMLAspect(xml2))	
 				try {
-					_facade.saveAspect(a);
-					if (isValidXMLAspect(xml2))
-					{
-						return xml2;
-					}
+					_facade.saveAspect(a); // XXX bringt das ueberhaupt was wenn aspect nicht new oder dirty ist? Und ist dies vielleicht der grund fuer die doppelten aspecte in baseX? 
+					return xml2;
 				} catch (Exception e) {
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to write aspect to DB: "+a.getDisplayNameWithID(), e);
 					iLogger.log(log);
 				}
-			}
-		}
-		else
-		{
+		} else
 			return xml;
-		}
 		return null;
 	}
 	
@@ -1408,22 +1159,18 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// check input
 		boolean isValid = true;
 		try {
-		getAspectXMLValidator().validate(source);
+			getAspectXMLValidator().validate(source);
 		} catch (Exception e) {
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Not valid aspect xml exempted from synchronisation " + xml);
-			iLogger.log(log);
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-			iLogger.log(log);
-
-
-		isValid = false;
+			//log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Invalid aspect xml exempted from synchronisation " + xml);
+			//iLogger.log(log);
+			//log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+			//iLogger.log(log);
+			isValid = false;
 		}
 		return isValid;
 	}
-
 	private Validator getAspectXMLValidator() {
-		if (aspectXMLValidator == null)
-		{
+		if (aspectXMLValidator == null)	{
 			// build the schema
 			SchemaFactory factory = SchemaFactory.newInstance("http://www.w3.org/2001/XMLSchema");
 			InputStream stream = this.getClass().getClassLoader().getResourceAsStream("/schemas/aodl.xsd");
@@ -1432,68 +1179,60 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try {
 				schema = factory.newSchema(schemaSource);
 				aspectXMLValidator = schema.newValidator();
-
 			} catch (SAXException e) {
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				log = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Unable to get aspect XML validator! ", e);iLogger.log(log);
 			}
 		}
 		return aspectXMLValidator;
 	}
+	
+	
 	private boolean isValidXMLPerson(String xml) {
 		Source source = new StreamSource(new StringReader(xml));
 		// check input
 		boolean isValid = true;
 		try {
-		getPersonXMLValidator().validate(source);
+			getPersonXMLValidator().validate(source);
 		} catch (Exception e) {
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Not valid person xml exempted from synchronisation " + xml);
+			/*log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Not valid person xml exempted from synchronisation " + xml);
 			iLogger.log(log);
 			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-			iLogger.log(log);
-		isValid = false;
+			iLogger.log(log);*/
+			isValid = false;
 		}
-
 		return isValid;
 	}
 	private String makeValidXMLPerson(String xml) {
 		// check input
 		boolean isValid = isValidXMLPerson(xml);
-		
-		if (!isValid)
-		{
+		if (!isValid) {
 			String id = extractPdrId(xml);
 			Person p = _facade.getPerson(new PdrId(id));
 			String xml2 = "";
 			try {
 				xml2 = _xmlProc.writeToXML(p);
 			} catch (XMLStreamException e) {
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+				log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to write person to XML: "+p.getDisplayNameWithID(), e);
 				iLogger.log(log);
 				return null;
 			}
-			if (isValidXMLPerson(xml2))
-			{
+			if (isValidXMLPerson(xml2))	{
 				try {
 					_facade.savePerson(p);
-					if (isValidXMLPerson(xml2))
-					{
+					//if (isValidXMLPerson(xml2))	{
 						return xml2;
-					}
+					//}
 				} catch (Exception e) {
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to  write person to DB "+p.getDisplayNameWithID(), e);
 					iLogger.log(log);
 				}
 			}
-		}
-		else
-		{
+		} else
 			return xml;
-		}
 		return null;
 	}
 	private Validator getPersonXMLValidator() {
-		if (personXMLValidator == null)
-		{
+		if (personXMLValidator == null)	{
 			SchemaFactory factory = SchemaFactory.newInstance("http://www.w3.org/2001/XMLSchema");
 			InputStream stream = this.getClass().getClassLoader().getResourceAsStream("/schemas/podl.xsd");
 			Schema schema;
@@ -1501,14 +1240,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try {
 				schema = factory.newSchema(schemaSource);
 				personXMLValidator = schema.newValidator();
-
 			} catch (SAXException e) {
-
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+				log = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Failed to get podl XML validator ", e);
 				iLogger.log(log);}
 		}
 		return personXMLValidator;
 	}
+	
+	
 	private boolean isValidXMLUser(String xml) {
 		Source source = new StreamSource(new StringReader(xml));
 		// check input
@@ -1587,58 +1326,52 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		return userXMLValidator;
 	}
+	
+	
 	private boolean isValidXMLReference(String xml) {
 		Source source = new StreamSource(new StringReader(xml));
 		// check input
 		boolean isValid = true;
 		try {
-		getReferenceXMLValidator().validate(source);
+			getReferenceXMLValidator().validate(source);
 		} catch (Exception e) {
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Not valid reference xml exempted from synchronisation " + xml);
+			/*log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Not valid reference xml exempted from synchronisation " + xml);
 			iLogger.log(log);
 			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-			iLogger.log(log);
-		isValid = false;
+			iLogger.log(log);*/
+			isValid = false;
 		}
-
 		return isValid;
 	}
 	private String makeValidXMLReference(String xml) {
 		// check input
 		boolean isValid = isValidXMLReference(xml);
-		
-		if (!isValid)
-		{
+		if (!isValid) {
 			String id = extractPdrId(xml);
 			ReferenceMods r = _facade.getReference(new PdrId(id));
 			String xml2 = "";
 			try {
 				xml2 = _xmlProc.writeToXML(r);
 			} catch (XMLStreamException e) {
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+				log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to write mods XML "+r.getDisplayNameWithID(), e);
 				iLogger.log(log);
 				return null;
 			}
-			if (isValidXMLReference(xml2))
-			{
+			if (isValidXMLReference(xml2))	
 				try {
 					_facade.saveReference(r);
 					return xml2;
 				} catch (Exception e) {
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
+					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to save mods ref to DB "+r.getDisplayNameWithID(), e);
 					iLogger.log(log);
 				}
-			}
 		}
 		else
-		{
 			return xml;
-		}
 		return null;
 	}
 	private Validator getReferenceXMLValidator() {
-		if (referenceXMLValidator == null)
-		{
+		if (referenceXMLValidator == null) {
 			SchemaFactory factory = SchemaFactory.newInstance("http://www.w3.org/2001/XMLSchema");
 			InputStream stream = this.getClass().getClassLoader().getResourceAsStream("/schemas/rodl_mods.xsd");
 			Schema schema;
@@ -1646,10 +1379,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try {
 				schema = factory.newSchema(schemaSource);
 				referenceXMLValidator = schema.newValidator();
-
 			} catch (SAXException e) {
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-				iLogger.log(log);			}
+				log = new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Failed to get mods XML validator ", e);
+				iLogger.log(log);			
+			}
 		}
 		return referenceXMLValidator;
 	}
@@ -1688,157 +1421,73 @@ public class RepositoryUpdateManager implements IUpdateManager
 		synchronized (_dbCon)
 		{
 			Vector<String> persons = new Vector<String>();
-			for (String s : _mainSearcher.getNewPersons())
-			{
-				s = removePersonPrefix(s);
+			for (String s : _mainSearcher.getNewPersons()) {
+				s = removePersonPrefix(s); // podl prefix is removed from xml
 				persons.add(s);
 			}
 			if (persons.size() == 0)
-			{
 				return;
-			}
+			log(1, "Begin ingest of "+persons.size()+" NEW person objects from local DB into remote repo");
 			monitor.beginTask("Injesting new Persons into Repository. Number of Objects: " + persons.size(),
 					persons.size());
 
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (persons.size() > NEWOBJECTS_PACKAGE_SIZE)
-			{
-				end = NEWOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = persons.size();
-			}
+			int end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : persons.size();
 			Vector<String> subPersons = new Vector<String>(end);
 			Vector<String> modifiedPersonsIds = new Vector<String>();
-			for (int i = begin; i < end; i++)
-			{
+			for (int i = begin; i < end; i++) {
 				String xml = persons.get(i);
-				if (isValidXMLPerson(xml))
-				{
-					subPersons.add(xml);
-				}
-				else
-				{
+				if (!isValidXMLPerson(xml)) {
 					String xml2 = makeValidXMLPerson(xml);
-					if (xml2 != null)
-					{
+					if (xml2 != null) {
 						subPersons.add(xml2);
-					}
-				}
+					} else
+						log(2, "Invalid New Person object: "+xml);
+				} else
+					subPersons.add(xml);
 			}
-			while (subPersons != null && !subPersons.isEmpty())
-			{
+			// push'n'chunk
+			while (subPersons != null && !subPersons.isEmpty())	{
+				log(1, "Push "+subPersons.size()+" NEW podl objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subPersons);
 
-				if (!idMap.isEmpty())
-				{
+				if (!idMap.isEmpty()) {
 					// System.out.println("size of map " + idMap.size());
 					// XQConnection con = _dbCon.getConnection();
 					// XQPreparedExpression xqp;
 					// XQResultSequence xqs = null;
 					// String replace;
 					String newID;
-					for (Identifier id : idMap.keySet())
-					{
+					for (Identifier id : idMap.keySet()) {
 						newID = idMap.get(id).toString();
+						// find global ID provided by server for current id 
 						modifiedPersonsIds = checkModfiedIds(persons, id, idMap, begin, modifiedPersonsIds);
-						resetObjectId(id, newID, 2);
-
-						// renameObject(id, newID);
-						//
-						// System.out.println("map old " + id.toString() +
-						// " new " + newID);
-						// replace =
-						// "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
-						// +
-						// "for $x in collection(\"person\")/podl:person//@*[.='"
-						// + id.toString() + "']\n"
-						// + "let $new := '" + newID + "'\n" +
-						// "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
-						//
-						// // replace =
-						// //
-						// "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
-						// // +
-						// //
-						// "for $x in collection(\"person\")/podl:person//*[.='"
-						// // + id.toString() + "']\n" +
-						// // "let $new := '" + idMap.get(id).toString() + "'\n"
-						// +
-						// // "return replace value of node $x with $new";
-						// // System.out.println(replace);
-						// // xqp = con.prepareExpression(replace);
-						// // xqs = xqp.executeQuery();
-						//
-						// replace =
-						// "declare namespace aodl=\"http://pdr.bbaw.de/namespaces/aodl/\";\n"
-						// +
-						// "for $x in collection(\"aspect\")/aodl:aspect//@*[.='"
-						// + id.toString() + "']\n"
-						// + "let $new := '" + idMap.get(id).toString() + "'\n"
-						// + "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
-						//
-						// // replace =
-						// //
-						// "declare namespace aodl=\"http://pdr.bbaw.de/namespaces/aodl/\";\n"
-						// // +
-						// //
-						// "for $x in collection(\"aspect\")/aodl:aspect//*[.='"
-						// // + id.toString() + "']\n" +
-						// // "let $new := '" + idMap.get(id).toString() + "'\n"
-						// +
-						// // "return replace value of node $x with $new";
-						// // System.out.println(replace);
-						// // xqp = con.prepareExpression(replace);
-						// // xqs = xqp.executeQuery();
+						resetObjectId(id, newID, 2); // update all occurences of this id in local DB in aodl and podl objects
 					}
-					// xqs.close();
-					// _dbCon.optimize("person");
-					// _dbCon.optimize("aspect");
-					//
-					// con.close();
 				}
 				monitor.worked(subPersons.size());
-				begin = end;
-				if (persons.size() > NEWOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + NEWOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = persons.size();
-				}
+				begin = end; // seems legit
+				end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE + end) ? (end + NEWOBJECTS_PACKAGE_SIZE) : persons.size();
+				counter += subPersons.size();
 				subPersons.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					String xml = persons.get(i);
-					if (isValidXMLPerson(xml))
-					{
-						subPersons.add(xml);
-					}
-					else
-					{
+					if (!isValidXMLPerson(xml)) {
 						String xml2 = makeValidXMLPerson(xml);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subPersons.add(xml2);
-						}
-					}
+						} else
+							log(2, "Invalid New Person object: "+xml);
+					} else
+						subPersons.add(xml);
 				}
 			}
+			// set dirty status of all objects handled just now to 'clean'
 			if (modifiedPersonsIds != null && !modifiedPersonsIds.isEmpty())
-			{
 				_idService.insertIdModifiedObject(modifiedPersonsIds, "pdrPo");
-			}
+			log(0, "Done pushing NEW podl objects. Total number of pushed persons: "+counter+"\n(out of "+persons.size()+" new objects, server returned "+modifiedPersonsIds.size()+" global IDs)");
 		}
 	}
 
@@ -1852,175 +1501,72 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private void injestNewReferences(final IProgressMonitor monitor) throws Exception
 	{
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			Vector<String> references = _mainSearcher.getNewReferences();
 			if (references.size() == 0)
-			{
 				return;
-			}
+			log(1, "Begin ingest of "+references.size()+" NEW reference objects from local DB into remote repo");
 			monitor.beginTask("Injesting new References into Repository. Number of Objects: " + references.size(),
 					references.size());
 
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (references.size() > NEWOBJECTS_PACKAGE_SIZE)
-			{
-				end = NEWOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = references.size();
-			}
+			int end = (references.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : references.size();
 			Vector<String> subReferences = new Vector<String>(end);
 			Vector<String> modifiedReferenceIds = new Vector<String>();
 			String ref;
-			for (int i = begin; i < end; i++)
-			{
+			for (int i = begin; i < end; i++) {
 				ref = references.get(i);
-				ref = removeRefPrefix(ref);
-				if (isValidXMLReference(ref))
-				{
-					subReferences.add(ref);
-				}
-				else
-				{
+				ref = removeRefPrefix(ref); // remove mods NS prefixes, as this has not been done at getNewReferences
+				if (!isValidXMLReference(ref)) {
 					String xml2 = makeValidXMLReference(ref);
-					if (xml2 != null)
-					{
+					if (xml2 != null) {
 						subReferences.add(xml2);
-					}
-				}
+					} else
+						log(2, "Invalid Reference: "+ref);
+				} else
+					subReferences.add(ref);
 			}
-			while (subReferences != null && !subReferences.isEmpty())
-			{
+			// push references until none remain
+			while (subReferences != null && !subReferences.isEmpty()) {
+				log(1, "Push "+subReferences.size()+" NEW reference objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subReferences);
-				if (!idMap.isEmpty())
-				{
-					// System.out.println("size of map " + idMap.size());
-					// XQConnection con = _dbCon.getConnection();
-					// XQPreparedExpression xqp;
-					// XQResultSequence xqs = null;
-					// String replace;
+				if (!idMap.isEmpty()) {
+					log(1, "Server returned ID map of length "+idMap.size());
 					String newID;
-					for (Identifier id : idMap.keySet())
-					{
+					for (Identifier id : idMap.keySet()) {
 						newID = idMap.get(id).toString();
+						// look up global mapping for current id and append it to modifiedreferenceIds
 						modifiedReferenceIds = checkModfiedIds(references, id, idMap, begin, modifiedReferenceIds);
+						// rename object in all DB objects of type aodl, podl and mods
 						resetObjectId(id, newID, 3);
-
-						// renameObject(id, newID);
-						//
-						// System.out.println("map old " + id.toString() +
-						// " new " + newID);
-						// replace =
-						// "declare namespace mods=\"http://www.loc.gov/mods/v3\";\n"
-						// +
-						// "for $x in collection(\"reference\")/mods:mods//@*[.='"
-						// + id.toString() + "']\n"
-						// + "let $new := '" + newID + "'\n" +
-						// "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
-						//
-						// // replace =
-						// // "for $x in collection(\"reference\")/mods//*[.='"
-						// +
-						// // id.toString() + "']\n" +
-						// // "let $new := '" + idMap.get(id).toString() + "'\n"
-						// +
-						// // "return replace value of node $x with $new";
-						// // System.out.println(replace);
-						// // xqp = con.prepareExpression(replace);
-						// // xqs = xqp.executeQuery();
-						//
-						// replace =
-						// "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
-						// +
-						// "for $x in collection(\"person\")/podl:person//@*[.='"
-						// + id.toString() + "']\n"
-						// + "let $new := '" + newID + "'\n" +
-						// "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
-						//
-						// replace =
-						// "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
-						// +
-						// "for $x in collection(\"person\")/podl:person//podl:reference[.='"
-						// + id.toString()
-						// + "']\n" + "let $new := '" + newID + "'\n"
-						// + "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
-						//
-						// replace =
-						// "declare namespace aodl=\"http://pdr.bbaw.de/namespaces/aodl/\";\n"
-						// +
-						// "for $x in collection(\"aspect\")/aodl:aspect//@*[.='"
-						// + id.toString() + "']\n"
-						// + "let $new := '" + newID + "'\n" +
-						// "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
-						//
-						// replace =
-						// "declare namespace aodl=\"http://pdr.bbaw.de/namespaces/aodl/\";\n"
-						// +
-						// "for $x in collection(\"aspect\")/aodl:aspect//aodl:reference[.='"
-						// + id.toString()
-						// + "']\n" + "let $new := '" + newID + "'\n"
-						// + "return replace value of node $x with $new";
-						// System.out.println(replace);
-						// xqp = con.prepareExpression(replace);
-						// xqs = xqp.executeQuery();
 					}
-					// xqs.close();
-					// _dbCon.optimize("person");
-					// _dbCon.optimize("aspect");
-					// _dbCon.optimize("reference");
-					//
-					// con.close();
 				}
 				monitor.worked(subReferences.size());
 
-				begin = end;
-				if (references.size() > NEWOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + NEWOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = references.size();
-				}
+				begin = end; // this seems about right
+				end = (references.size() > NEWOBJECTS_PACKAGE_SIZE+end) ? (end+NEWOBJECTS_PACKAGE_SIZE) : references.size();  
+				counter += subReferences.size();
 				subReferences.clear();
 
-				for (int i = begin; i < end; i++)
-				{
+				for (int i = begin; i < end; i++) {
 					ref = references.get(i);
-					ref = removeRefPrefix(ref);
-					if (isValidXMLReference(ref))
-					{
-						subReferences.add(ref);
-					}
-					else
-					{
+					ref = removeRefPrefix(ref); // remove mods prefixes now
+					if (!isValidXMLReference(ref)) {
 						String xml2 = makeValidXMLReference(ref);
-						if (xml2 != null)
-						{
+						if (xml2 != null) {
 							subReferences.add(xml2);
-						}
-					}
+						} else
+							log(2, "Invalid Reference: "+ref);
+					} else
+						subReferences.add(ref);
 				}
 			}
-			if (modifiedReferenceIds != null && !modifiedReferenceIds.isEmpty())
-			{
+			// in local DB, move all Ids identified as having local changes from
+			// the DB's 'modified' collection to persistent collections.
+			if (modifiedReferenceIds != null && !modifiedReferenceIds.isEmpty()) 
 				_idService.insertIdModifiedObject(modifiedReferenceIds, "pdrRo");
-			}
+			log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+references.size()+" new objects, server returned "+modifiedReferenceIds.size()+" global IDs)");
 		}
 	}
 
@@ -2140,7 +1686,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Insert conflicting objects.
+	 * Resolve object conflicts by one of the following strategies:
+	 * <ul><li>Push and Force Overwrite of remote version with local changes</li>
+	 * <li>Overwrite local changes with remote versions in local DB</li>
+	 * <li>Do nothing, local object stays modified/new until prosponed conflict resolution is done at another time</li>
+	 * </ul> 
 	 * @param conObjects the con objects
 	 * @param monitor the monitor
 	 * @throws XMLStreamException the xML stream exception
@@ -2149,49 +1699,49 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws XQException the xQ exception
 	 */
 	private void insertConflictingObjects(Vector<PDRObjectsConflict> conObjects, IProgressMonitor monitor)
-			throws Exception
-	{
+			throws Exception {
 		Vector<String> keepLocalObjects = new Vector<String>();
 
 		String object = null;
-		for (PDRObjectsConflict oc : conObjects)
-		{
-			if (oc.isKeepLocal() && oc.getLocalObject() != null)
-			{
-				if (oc.getLocalObject() instanceof Aspect)
-				{
+		for (PDRObjectsConflict oc : conObjects) {
+			// 1. conflicts that are resolved by keeping local version
+			if (oc.isKeepLocal() && oc.getLocalObject() != null) {
+				// for each conflict to be resolved by keeping the local version, 
+				// test pdr type of local version, then write object XML,
+				// remove NS prefixes, and add XML to list of local objects to be kept
+				if (oc.getLocalObject() instanceof Aspect) {
 					object = removeAspectPrefixes(_xmlProc.writeToXML(oc.getLocalObject()));
-				}
-				if (oc.getLocalObject() instanceof Person)
-				{
+				} else if (oc.getLocalObject() instanceof Person) {
 					object = removePersonPrefix(_xmlProc.writeToXML(oc.getLocalObject()));
-				}
-				if (oc.getLocalObject() instanceof ReferenceMods)
-				{
+				} else if (oc.getLocalObject() instanceof ReferenceMods)
 					object = _xmlProc.writeToXML(oc.getLocalObject());
-				}
-
+				// TODO: das kann man auch einfacher haben, wenn man dafuer sorgt, dasz alle typen entweder den NS dabei haben oder alle halt nicht
+				// naja, jedenfalls wird lokales objekt fuer forced commit vorbereitet
 				if (object != null)
-				{
 					keepLocalObjects.add(object);
-				}
-			}
-			else if (oc.isOverrideLocal())
-			{
+			} 
+			// 2. conflicts that are resolved by deleting local version
+			else if (oc.isOverrideLocal()) {
+				// save remote version of object to local DB
+				log(1, "Save remote version of object "+oc.getRepositoryObject().getDisplayNameWithID()+" to local DB");
 				_dbManager.saveToDB(oc.getRepositoryObject(), false);
 				monitor.worked(1);
 			}
-			else if (oc.getLocalObject() != null) // resolve conflict later, save id to be treated as modified.
-			{
+			// 3. conflicts to be prosponed are resolved later
+			else if (oc.getLocalObject() != null) {// resolve conflict later, save id to be treated as modified.
 				_idService.insertIdModifiedObject(oc.getLocalObject().getPdrId());
+				// ID wird als modified gelistet, auszer sie ist neu. Auf jeden fall soll sie erstmal dirty bleiben
+				log(1, "Prospone conflict resolution of object "+oc.getLocalObject().getPdrId());
 			}
 		}
-		if (keepLocalObjects != null && !keepLocalObjects.isEmpty())
-		{
-			Repository.modifyObjects(_repositoryId, _projectId, keepLocalObjects, true);
+		
+		// Push local changes to repo for conflicts that have been selected for this handling 
+		if (keepLocalObjects != null && !keepLocalObjects.isEmpty()) {
+			log(1, "Overwrite "+keepLocalObjects.size()+" remote objects with local changes at Project "+_repositoryId+"/"+_projectId);
+			Repository.modifyObjects(_repositoryId, _projectId, keepLocalObjects, true); // man beachte: force-flag!
 			monitor.worked(keepLocalObjects.size());
 		}
-
+		log(0, "Handled "+conObjects.size()+" conflicts");
 	}
 
 	/**
@@ -2297,7 +1847,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Removes the person prefix.
+	 * Removes podl namespace prefixes from person object XML serialization.
 	 * @param personString the person string
 	 * @return the string
 	 */
@@ -2442,52 +1992,63 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Rename object.
+	 * Retrieves object found under oldID, deletes it from DB and saves it
+	 * under newId
 	 * @param oldId the old id
 	 * @param newID the new id
 	 * @throws Exception
 	 */
 	private void renameObject(final Identifier oldId, final String newID) throws Exception
 	{
+		// FIXME: wenn man einfach das objekt das unter oldId liegt unter newId speichert, sind dann
+		// nicht die ganzen IDs innerhalb des objektes total falsch?
 		String xml;
 		String col = null;
 		if (oldId.getType().equals(PDRType.ASPECT))
-		{
 			col = "aspect";
-		}
-		if (oldId.getType().equals(PDRType.PERSON))
-		{
+		if (oldId.getType().equals(PDRType.PERSON)) 
 			col = "person";
-		}
 		if (oldId.getType().equals(PDRType.REFERENCE))
-		{
 			col = "reference";
-		}
 		if (oldId.getType().equals(PDRType.USER))
-		{
 			col = "users";
-		}
 
-		if (col != null)
-		{
+		if (col != null) {
+			// get xml for object identified by old ID
 			xml = _mainSearcher.getObjectXML(oldId.toString(), col);
 			// System.out.println("renameobject xml " + xml);
-			if (xml != null && xml.trim().length() > 0)
-			{
+			if (xml != null && xml.trim().length() > 0) {
+				log(1, "Move object "+xml+"\nfrom old ID "+oldId+"\nto new ID "+newID);
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject delete " + oldId.toString());
-				iLogger.log(log);
+				//iLogger.log(log);
 				_dbCon.delete(oldId.toString(), col);
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject store newid " + newID.toString());
-				iLogger.log(log);
+				//iLogger.log(log);
+				// save object under new ID to DB
 				_dbCon.store2DB(xml, col, newID.toString() + ".xml", true);
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject renaming done " + newID.toString());
-				iLogger.log(log);
+				//iLogger.log(log);
+				//log(1, "Object under newID "+newID+":\n"+_mainSearcher.getObjectXML(newID, col));
 			}
 
 		}
 
 	}
 
+
+	
+	private void log(int level, String msg) {
+		iLogger.log(new Status(level, Activator.PLUGIN_ID, msg));
+	}
+	
+	private void log(int level, String msg, Throwable e) {
+		if (e != null) {
+			iLogger.log(new Status(level, Activator.PLUGIN_ID, msg+"\n"+e.getMessage(), e));
+			//e.printStackTrace();
+		} else
+			log(level, msg);
+	}
+	
 
 	@Override
 	public final IStatus updateAllData(final String userID, final String password, final IProgressMonitor monitor)
@@ -2509,363 +2070,239 @@ public class RepositoryUpdateManager implements IUpdateManager
 				+ password);
 		iLogger.log(log);
 		boolean success = true;
+		/////////////////////
 		// injest new objects
-		try
-		{
+		/////////////////////
+		try	{
+			////////
+			// USERS
+			////////
+			log(IStatus.INFO, "Ingest of new Users", null);
 			injestNewUsers(userID, password);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			success = false;
-		}
-		catch (PDRAlliesClientException e1)
-		{
+			log(IStatus.OK, "New Users successfully ingested", null);
+		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);		}
-		catch (XQException e1)
-		{
+			iLogger.log(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception at ALLIES library while ingesting new users: ", e));
+			e.printStackTrace();
+		} catch (Exception e) {
 			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);		}
-		catch (XMLStreamException e1)
-		{
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
+			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new users: ", e);
 			iLogger.log(log);
-			success = false;
-		}
-		catch (InvalidIdentifierException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
+			e.printStackTrace();
 		}
 		
 		// new project, local user still does not yet exist in repository
-		if (!success)
-		{
+		if (!success) {
 			//use default user to injest new users.
+			log(IStatus.INFO, "New project; authenticate as pdrAdmin", null);
 			Configuration.getInstance().setPDRUser("pdrUo.001.002.000000001", "pdrrdp");
 			success = true;
-			try
-			{
+			try {
+				log(1, "Second attempt to ingest new user objects to repo", null);
 				injestNewUsers(userID, password);
-			}
-			catch (UnsupportedEncodingException e1)
-			{
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-				iLogger.log(log);
-				success = false;
-			}
-			catch (PDRAlliesClientException e1)
-			{
+				log(0, "New users successfully ingested into repo", null);
+			} catch (PDRAlliesClientException e) {
 				updateStatus = Status.CANCEL_STATUS;
 				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-				iLogger.log(log);
-				}
-			catch (XQException e1)
-			{
+				log(IStatus.WARNING, "Exception in ALLIES while ingesting new users: ", e);
+			} catch (Exception e) {
 				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-				iLogger.log(log);
+				log(2, "Exception while ingesting new users: ", e);
 			}
-			catch (XMLStreamException e1)
-			{
-				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-				iLogger.log(log);
-			}
-			catch (InvalidIdentifierException e1)
-			{
-				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-				iLogger.log(log);
-			}
+			log(1, "Reset credentials for repo auth: "+userID+":"+password, null);
 			Configuration.getInstance().setPDRUser(userID, password);
 
 		}
-		try
-		{
+		
+		
+		try	{
+			/////////////////
+			// NEW REFERENCES
+			/////////////////
+			//log(1, "Begin to ingest new reference objects", null);
 			injestNewReferences(monitor);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
+			//log(0, "New references successfully ingested into repo");
+		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (InvalidIdentifierException e1)
-		{
+			log(2, "Exception in ALLIES while ingesting new references", e);
+		} catch (Exception e) {
 			success = false;
-
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);}
-		try
-		{
-			injestNewPersons(monitor);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (InvalidIdentifierException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		try
-		{
-			injestNewAspects(monitor);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (InvalidIdentifierException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-
-		// injest modified configs
-		try
-		{
-			injestModifiedConfig();
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XMLStreamException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-
-		// injest midified objects
-		try
-		{
-			injestModifiedUsers();
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XMLStreamException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		try
-		{
-			injestModifiedReferences(monitor);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XMLStreamException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		try
-		{
-			injestModifiedPersons(monitor);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XMLStreamException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-		}
-		try
-		{
-			injestModifiedAspects(monitor);
-		}
-		catch (UnsupportedEncodingException e1)
-		{
-			success = false;
-
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);
-			iLogger.log(log);
-			}
-		catch (XQException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
-			}
-		catch (PDRAlliesClientException e1)
-		{
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
-		}
-		catch (XMLStreamException e1)
-		{
-			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
+			log(IStatus.WARNING, "Exception while ingesting new references: ", e);
 		}
 		
+		
+		try {
+			//////////
+			// PERSONS
+			//////////
+			//log(1, "Begin to ingest new persons into repo");
+			injestNewPersons(monitor);
+			//log(0, "New person objects successfully ingested into repo");
+		} catch (PDRAlliesClientException e) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception in ALLIES while ingesting new persons: ", e);
+		} catch (Exception e) {
+			success = false;
+			log(2, "Exception while ingesting new persons: ", e);
+		}
+		
+		
+		
+		try	{
+			//////////////
+			// NEW ASPECTS
+			//////////////
+			//log(1, "Begin to ingest new aspects into repo");
+			injestNewAspects(monitor);
+			//log(0, "New aspects successfully ingested into repo");
+		} catch (PDRAlliesClientException e) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception in ALLIES while ingesting new aspects into repo: ", e);
+		} catch (Exception e) {
+			success = false;
+			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new aspects", e);
+			iLogger.log(log);
+		}
+
+		
+		////////////////////
+		// MODIFIED OBBJECTS
+		////////////////////
+		
+		// injest modified configs
+		try {
+			//////////
+			// CONFIGS
+			//////////
+			log(1, "Begin to ingest modified configurations into repo");
+			injestModifiedConfig();
+			log(0, "Done ingesting modified configurations");
+		} catch (PDRAlliesClientException e1) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception during modified configurations ingest into repo: ", e1);
+		} catch (Exception e1) {
+			success = false;
+			log(IStatus.WARNING, "Exception during ingest of modified configurations into repo: ", e1);
+		}
+
+		// injest midified objects
+		try	{
+			/////////////////
+			// MODIFIED USERS
+			/////////////////
+			//log(1, "Begin to ingest modified user objects into repo");
+			injestModifiedUsers();
+			//log(0, "Done ingesting modified users into repo");
+		} catch (PDRAlliesClientException e1) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception during ingest of modified users", e1);
+		} catch (Exception e1) {
+			success = false;
+			log(2, "Exception during ingest of modified users", e1);
+		}
+
+		
+		try	{
+			//////////////////////
+			// MODIFIED REFERENCES
+			//////////////////////
+			//log(1, "Begin to ingest modified reference objects into repo");
+			injestModifiedReferences(monitor);
+			//log(0, "Done ingesting modified references");
+		} catch (PDRAlliesClientException e1) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception in ALLIES during ingest of modified references into repo: ", e1);
+		} catch (Exception e1) {
+			success = false;
+			log(2, "Exception during ingest of modified references into repo: ", e1);
+		}
+		
+		
+		
+		try {
+			///////////////////
+			// MODIFIED PERSONS
+			///////////////////
+			//log(1, "Begin to ingest modified person objects into repo");
+			injestModifiedPersons(monitor);
+			//log(0, "Done ingesting modified person objects");
+		} catch (PDRAlliesClientException e1) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception in ALLIES during ingest of modified persons into repo: ", e1);
+		} catch (Exception e1) {
+			success = false;
+			log(2, "Exception during ingest of modified persons into repo: ", e1);
+		}
+
+		
+		
+		try	{
+			///////////////////
+			// MODIFIED ASPECTS
+			///////////////////
+			//log(1, "Begin to ingest modified aspects into repo");
+			injestModifiedAspects(monitor);
+			//log(0, "Done ingesting modified aspects into repo");
+		} catch (PDRAlliesClientException e1) {
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log(2, "Exception in ALLIES during ingest of modified aspects into repo: ", e1);
+		} catch (Exception e1) {
+			success = false;
+			log(2, "Exception during ingest of modified aspects into repo: ", e1);
+		}
+		
+		
+		////////////////////
+		// CONFLICT HANDLING
+		////////////////////
 		
 		if ((_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty())
 				|| (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty())
 				|| (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty()))
 		{
-			// System.out.println("handle conflicts asp " +
-			// _conflictingRepAspects.size() + " pers "
-			// + _conflictingRepPersons.size() + " refs " +
-			// _conflictingRepReferences.size());
-
-			 
-			 handleObjectsConflicts(monitor);
-			
-			
+			log(1, "Conflicts detected during ingest. Starting to resolve...");
+			handleObjectsConflicts(monitor);
 		}
 		// injest process completed. clear update states
-		else if (success)
-		{
-			try
-			{
+		else if (success) {
+			log(0, "Ingest of local changes successfully completed. No conflicts.");
+			try	{
+				log(1, "Try to clear update states of local objects");
 				_idService.clearAllUpdateStates();
-			}
-			catch (XQException e1)
-			{
-				// TODO Auto-generated catch block
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
+				log(0, "Update states cleared.");
+			} catch (XQException e1) {
+				log(2, "Clearing update states of local objects failed: ", e1);
 			}
 		}
 
-				// get all new or modified data
 
-				// XXX neue oder modifizierte configs holen
-				try
-				{
-					getModifiedConfig();
-				}
-				catch (PDRAlliesClientException e1)
-				{
-					updateStatus = Status.CANCEL_STATUS;
-					success = false;
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
-				}
+		/////////////////////
+		// GET REMOTE CHANGES
+		/////////////////////
+		
+		
+		// get all new or modified data
+
+		// XXX neue oder modifizierte configs holen
+		try
+		{
+			getModifiedConfig();
+		}
+		catch (PDRAlliesClientException e1)
+		{
+			updateStatus = Status.CANCEL_STATUS;
+			success = false;
+			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
+		}
 
 		// Date lastUpdate = null;
 		// try {
@@ -3480,8 +2917,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 	}
 
-	private void resetObjectId(Identifier id, String newID, int level) throws Exception
-	{
+	/**
+	 * Move local DB object stored under id to newID, then update
+	 * all references to this object found in the DB according to level parameter.
+	 * (level = 4: update all objects up to uodl, 3: up to mods, 2: up to podl, 1: only aodl)
+	 * @param id
+	 * @param newID
+	 * @param level
+	 * @throws Exception
+	 */
+	private void resetObjectId(Identifier id, String newID, int level) throws Exception {
 		XQConnection con;
 		con = _dbCon.getConnection();
 		XQPreparedExpression xqp;
@@ -3490,59 +2935,47 @@ public class RepositoryUpdateManager implements IUpdateManager
 		log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "resetObjectId old: " + id.toString() + " new: " + newID);
 		iLogger.log(log);
 		boolean successful = false;
-		try
-		{
-			renameObject(id, newID);
+		try	{
+			renameObject(id, newID); // moves object from id to newId in local DB
 			successful = true;
+		} catch (XQException e2) {
+			log(2, "Could not move object from "+id+" to "+newID, e2);
 		}
-		catch (XQException e2)
-		{
-			// TODO Auto-generated catch block
-			e2.printStackTrace();
-		}
-		if (successful)
-		{
-			if (level >= 4)
-			{
+
+		if (successful)	{
+			//log(1, "Object under newID "+newID+":\n"+_mainSearcher.getObjectXML(newID, col));
+			// update all ID references in DB user objects
+			if (level >= 4)	{ 
 				replace = "declare namespace uodl=\"http://pdr.bbaw.de/namespaces/uodl/\";\n"
 						+ "for $x in collection(\"users\")/uodl:user//@*[.='" + id.toString() + "']\n"
 						+ "let $new := '" + newID + "'\n" + "return replace value of node $x with $new";
-				try
-				{
+				try	{
 					con = _dbCon.getConnection();
 					xqp = con.prepareExpression(replace);
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
-
-				}
-				catch (XQException e)
-				{
-					// TODO Auto-generated catch block
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				} catch (XQException e) 	{
+					log(2, "Could not update user object references to "+id, e);
 				}
 				// _dbCon.optimize("users");
 			}
 
-			if (level >= 3)
-			{
+			// update all ID reference in DB reference objects
+			if (level >= 3) 	{
 				replace = "declare namespace mods=\"http://www.loc.gov/mods/v3\";\n"
 						+ "for $x in collection(\"reference\")/mods:mods//@*[.='" + id.toString() + "']\n"
 						+ "let $new := '" + newID + "'\n" + "return replace value of node $x with $new";
-				System.out.println(replace);
-				try
-				{
+				//System.out.println(replace);
+				try	{
 					con = _dbCon.getConnection();
 					xqp = null;
 					xqp = con.prepareExpression(replace);
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
-				}
-				catch (XQException e)
-				{
-					// TODO Auto-generated catch block
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				} catch (XQException e)	{
+					log(2, "Could not update mods object references to "+id, e);
 				}
 
 				// replace = "for $x in collection(\"reference\")/mods//*[.='" +
@@ -3556,87 +2989,71 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 			}
 
-			if (level >= 2)
-			{
+			// update all ID references in DB person objects
+			if (level >= 2) {
 				replace = "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
 						+ "for $x in collection(\"person\")/podl:person//@*[.='" + id.toString() + "']\n"
 						+ "let $new := '" + newID + "'\n" + "return replace value of node $x with $new";
-				System.out.println(replace);
-				try
-				{
+				//System.out.println(replace);
+				try {
 					con = _dbCon.getConnection();
 					xqp = null;
 					xqp = con.prepareExpression(replace);
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
-				}
-				catch (XQException e)
-				{
-					// TODO Auto-generated catch block
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				} catch (XQException e) {
+					log(2, "Could not update person object references to "+id, e);
 				}
 
 				replace = "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
 						+ "for $x in collection(\"person\")/podl:person//podl:reference[.='" + id.toString() + "']\n"
 						+ "let $new := '" + newID + "'\n" + "return replace value of node $x with $new";
-				System.out.println(replace);
-				try
-				{
+				//System.out.println(replace);
+				try	{
 					con = _dbCon.getConnection();
 					xqp = null;
 					xqp = con.prepareExpression(replace);
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
-				}
-				catch (XQException e1)
-				{
-					// TODO Auto-generated catch block
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
+				} catch (XQException e1) {
+					log(2, "Could not update person object (reference element) references to "+id, e1);
 				}
 				// _dbCon.optimize("person");
 
 			}
 
-			if (level >= 1)
-			{
+			// update ID references in attributes in local aspects objects
+			if (level >= 1)	{
 				replace = "declare namespace aodl=\"http://pdr.bbaw.de/namespaces/aodl/\";\n"
 						+ "for $x in collection(\"aspect\")/aodl:aspect//@*[.='" + id.toString() + "']\n"
 						+ "let $new := '" + newID + "'\n" + "return replace value of node $x with $new";
-				System.out.println(replace);
-				try
-				{
+				//System.out.println(replace);
+				try	{
 					con = _dbCon.getConnection();
 					xqp = null;
 					xqp = con.prepareExpression(replace);
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
-				}
-				catch (XQException e)
-				{
-					// TODO Auto-generated catch block
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				} catch (XQException e)	{
+					log(2, "Could not update aspect object references to "+id, e);
 				}
 
 				replace = "declare namespace aodl=\"http://pdr.bbaw.de/namespaces/aodl/\";\n"
 						+ "for $x in collection(\"aspect\")/aodl:aspect//aodl:reference[.='" + id.toString() + "']\n"
 						+ "let $new := '" + newID + "'\n" + "return replace value of node $x with $new";
-				System.out.println(replace);
-				try
-				{
+				//System.out.println(replace);
+				try	{
 					con = _dbCon.getConnection();
 					xqp = null;
 					xqp = con.prepareExpression(replace);
 					xqs = xqp.executeQuery();
 					xqs.close();
 					con.close();
-				}
-				catch (XQException e)
-				{
-					// TODO Auto-generated catch block
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				} catch (XQException e)	{
+					log(2, "Could not update aspect object (reference element) references to "+id, e);
 				}
 				// _dbCon.optimize("aspect");
 

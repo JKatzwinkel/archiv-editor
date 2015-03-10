@@ -77,7 +77,7 @@ public interface IPdrIdService
 	Vector<String> getModifiedObjects() throws Exception;
 
 	/**
-	 * Gets the modified person ids.
+	 * Get IDs of person objects flagged as modified in local DB.
 	 * @return the modified person ids
 	 * @throws Exception the exception
 	 */
@@ -141,7 +141,9 @@ public interface IPdrIdService
 	void insertIdModifiedObject(PdrId pdrId) throws Exception;
 
 	/**
-	 * Insert id modified object.
+	 * From a Vector of PDR Ids, move all objects stored in a local DB collection called 'modified'
+	 * to a persistent collection. That is (probably), neither of the specified Pdr Ids should be
+	 * flagged as locally modified after termination of this method.
 	 * @param modifiedIds the modified ids
 	 * @param type the type
 	 * @throws Exception the exception

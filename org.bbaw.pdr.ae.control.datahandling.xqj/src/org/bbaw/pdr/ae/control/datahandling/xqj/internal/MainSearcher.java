@@ -2190,6 +2190,7 @@ public class MainSearcher extends AMainSearcher
 	{
 		String query = "";
 		String id = name.substring(0, 23);
+		iLogger.log(new Status(IStatus.INFO, Activator.PLUGIN_ID, "Search for ["+col+"] object with ID "+id));
 		String obj = null;
 		if (col.equals("person"))
 		{
