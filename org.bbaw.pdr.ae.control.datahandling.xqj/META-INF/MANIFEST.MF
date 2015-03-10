@@ -24,5 +24,5 @@ Import-Package: org.bbaw.pdr.ae.common,
  org.bbaw.pdr.ae.model.view,
  org.bbaw.pdr.allies,
  org.bbaw.pdr.allies.client,
- org.bbaw.pdr.allies.client.error,
+ org.bbaw.pdr.allies.error,
  org.eclipse.jface.fieldassist

@@ -9,7 +9,7 @@ Require-Bundle: org.eclipse.ui;resolution:=optional,
  org.eclipse.core.runtime
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
-Bundle-ClassPath: lib/lib-pdr-allies-1.0.0.jar,
+Bundle-ClassPath: lib/lib-pdr-allies-1.1.0.jar,
  .,
  lib/axiom.jar,
  lib/commons-io-2.4.jar,
@@ -22,4 +22,4 @@ Bundle-ClassPath: lib/lib-pdr-allies-1.0.0.jar,
  lib/commons-httpclient-3.1.jar
 Export-Package: org.bbaw.pdr.allies,
  org.bbaw.pdr.allies.client,
- org.bbaw.pdr.allies.client.error
+ org.bbaw.pdr.allies.error
