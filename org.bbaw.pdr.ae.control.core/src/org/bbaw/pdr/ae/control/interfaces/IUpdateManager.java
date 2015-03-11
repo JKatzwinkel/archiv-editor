@@ -49,7 +49,7 @@ public interface IUpdateManager
 	IStatus updateAllData(String userID, String password, IProgressMonitor monitor) throws Exception;
 
 	/**
-	 * Update users.
+	 * Update users: ingest local uodl objects marked as <i>new</i>, then download and save remote user objects to DB. 
 	 * @param monitor the monitor
 	 * @return the i status
 	 * @throws Exception the exception

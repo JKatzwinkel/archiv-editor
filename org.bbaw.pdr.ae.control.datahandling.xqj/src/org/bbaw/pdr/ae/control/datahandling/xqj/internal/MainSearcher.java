@@ -1137,7 +1137,7 @@ public class MainSearcher extends AMainSearcher
 
 		String query = "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
 				+ "for $x in collection(\"person\")//podl:person\n" + "return $x";
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllPersons: " + query);
+		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllPersons: ");// + query);
 		iLogger.log(_log);
 		XQResultSequence xqs;
 		synchronized (_dbCon)
@@ -1277,7 +1277,7 @@ public class MainSearcher extends AMainSearcher
 
 			XQPreparedExpression xqp;
 
-			_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllReferences: " + query);
+			_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllReferences: ");// + query);
 			iLogger.log(_log);
 
 			xqp = con.prepareExpression(query);

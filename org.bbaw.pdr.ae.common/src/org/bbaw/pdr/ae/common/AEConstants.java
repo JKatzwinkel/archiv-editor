@@ -222,7 +222,7 @@ public final class AEConstants
 	/** default automated update. */
 	public static final boolean AUTOMATED_UPDATE;
 
-	/** first update. */
+	/** made up timestamp back in 2011, used for fallbacks. */
 	public static Date FIRST_EVER_UPDATE_TIMESTAMP;
 	/** repository id. */
 	public static final int REPOSITORY_ID;

@@ -42,8 +42,10 @@ import java.text.ParseException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -237,82 +239,60 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @return true if repository version not older than local one
 	 * @throws Exception
 	 */
-	private boolean checkVersions(final String repo, final String col, final String name) throws Exception
-	{
+	private boolean checkVersions(final String repo, final String col, final String name) throws Exception {
 		// System.out.println("checking version repo " + repo);
 		String local = null;
-		try
-		{
+		String logmsg; 
+		try	{
 			//System.out.println("checking version col " + col + " name " + name);
 			local = _mainSearcher.searchObjectString(col, name);
-			log(1, "Compare object versions:\nlocal:  " + local+"\nremote: "+repo);
-		}
-		catch (XQException e)
-		{
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-			iLogger.log(log);
-			e.printStackTrace();
-		}
-		String localLastRev = null;
-		Date localLastDate = null;
-		String repoLastRev = null;
-		Date repoLastDate = null;
-		if (local != null)
-		{
-			Matcher m = _revisionPattern.matcher(local);
-			while (m.find())
-			{
-				localLastRev = m.group();
-			}
-
-			if (localLastRev != null)
-			{
-				localLastRev = localLastRev.split("timestamp=\"")[1];
-				try
-				{
-					localLastDate = AEConstants.ADMINDATE_FORMAT.parse(localLastRev);
-				}
-				catch (ParseException e)
-				{
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-
-			m = _revisionPattern.matcher(repo);
-			while (m.find())
-			{
-				repoLastRev = m.group();
-			}
-
-			if (repoLastRev != null)
-			{
-				repoLastRev = repoLastRev.split("timestamp=\"")[1];
-				try
-				{
-					repoLastDate = AEConstants.ADMINDATE_FORMAT.parse(repoLastRev);
-				}
-				catch (ParseException e)
-				{
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-					iLogger.log(log);
-					e.printStackTrace();
-				}
-			}
-
-			if (localLastDate != null && repoLastDate != null && repoLastDate.before(localLastDate))
-			{
-				return false;
-			}
-			else
-			{
-				return true;
-			}
-		}
-		else
-		{
+			logmsg = "Compare object versions:\nlocal:  " + local+"\nremote: "+repo;
+		} catch (XQException e)	{
+			log(2, "local Object retrieval failed for "+name+" ("+col+")", e);
 			return true;
 		}
+		boolean repoNewer = true;
+		Date localLastDate = null;
+		Date repoLastDate = null;
+		if (local != null) {
+			Matcher m = _revisionPattern.matcher(local);
+			Vector<Date> revDates = new Vector<Date>();
+			while (m.find()) 
+				try {
+					revDates.add(AEConstants.ADMINDATE_FORMAT.parse(m.group().split("timestamp=\"")[1]));
+				} catch (Exception e) {
+					// failed to parse revision timestamp
+					// TODO: throw exception?
+				}
+			if (!revDates.isEmpty())
+				localLastDate = Collections.max(revDates);
+			if (repo != null) {
+				revDates.clear();
+				m = _revisionPattern.matcher(repo);
+				while (m.find())
+					try {
+						revDates.add(AEConstants.ADMINDATE_FORMAT.parse(m.group().split("timestamp=\"")[1]));
+					} catch  (Exception e) {
+						// failed to parse revision timestamp
+					}
+				if (!revDates.isEmpty())
+					repoLastDate = Collections.max(revDates);
+			} else {// return false if repo object is null
+				log(2, logmsg+"\nRemote object is null, hence not newer");
+				repoNewer = false;
+			}
+			// return false if most recent repo object revision is not more recent than local object's
+			// or if remote object revision could not be retrieved
+			if (repoLastDate != null) {
+				if (localLastDate != null && !repoLastDate.after(localLastDate))
+					repoNewer = false;
+			} else 
+				repoNewer = false;
+		} else // return true if local version is null, as we want to download remote version then
+			repoNewer = true;
+		log(1, logmsg+"\nTimestamps of latest revisions: local: "+localLastDate+", remote: "+repoLastDate+"\nRemote version newer: "+repoNewer);
+		// return true if local object could not be retrieved or remote object is newer
+		return repoNewer;
 	}
 
 	/**
@@ -1580,109 +1560,68 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private final void injestNewUsers(String userId, String password) throws Exception
 	{
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			Vector<String> users = getNewUsers();
+			if (users.size()<1) return;
+			log(1, "Begin ingesting new users from local DB into repo");
+			int counter = 0;
 			int begin = 0;
-			int end;
-			if (users.size() > NEWOBJECTS_PACKAGE_SIZE)
-			{
-				end = NEWOBJECTS_PACKAGE_SIZE;
-			}
-			else
-			{
-				end = users.size();
-			}
+			int end = (users.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : users.size(); 
 			Vector<String> subUsers = new Vector<String>(end);
 			Vector<String> modifiedUserIds = new Vector<String>();
 			Vector<String> standardUsers = new Vector<String>(9);
-			for (int i = begin; i < end; i++)
-			{
-				if (new Integer(extractPdrId(users.get(i)).substring(14)) <= 9)
-				{
+			for (int i = begin; i < end; i++) {
+				if (new Integer(extractPdrId(users.get(i)).substring(14)) <= 9)	{
 					standardUsers.add(users.get(i));
-				}
-				else
-				{
+				} else	{
 					String xml = users.get(i);
-					if (isValidXMLUser(xml))
-					{
-						subUsers.add(xml);
-					}
-					else
-					{
+					if (!isValidXMLUser(xml)) {
 						String xml2 = makeValidXMLUser(xml);
 						if (xml2 != null)
-						{
 							subUsers.add(xml2);
-						}
-					}
-					
+					} else
+						subUsers.add(xml);
 				}
 			}
-			while (subUsers != null && !subUsers.isEmpty())
-			{
+			while (subUsers != null && !subUsers.isEmpty())	{
+				log(1, "Push "+subUsers.size()+" oudl objects to remote repo");
 				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subUsers);
-				if (!idMap.isEmpty())
-				{
+				if (!idMap.isEmpty()) {
 					// System.out.println("size of map " + idMap.size());
 					String newID;
-					for (Identifier id : idMap.keySet())
-					{
+					for (Identifier id : idMap.keySet()) {
 						newID = idMap.get(id).toString();
 						modifiedUserIds = checkModfiedIds(users, id, idMap, begin, modifiedUserIds);
 						// renameObject(id, newID);
-
 						resetObjectId(id, newID, 4);
-
 					}
 				}
 
 				begin = end;
-				if (users.size() > NEWOBJECTS_PACKAGE_SIZE + end)
-				{
-					end = end + NEWOBJECTS_PACKAGE_SIZE;
-				}
-				else
-				{
-					end = users.size();
-				}
+				end = (users.size() > NEWOBJECTS_PACKAGE_SIZE + end) ? end + NEWOBJECTS_PACKAGE_SIZE : users.size();
+				counter += subUsers.size();
 				subUsers.clear();
 
-				for (int i = begin; i < end; i++)
-				{
-					if (new Integer(extractPdrId(users.get(i)).substring(14)) <= 9)
-					{
+				for (int i = begin; i < end; i++) {
+					if (new Integer(extractPdrId(users.get(i)).substring(14)) <= 9)	{
 						standardUsers.add(users.get(i));
-					}
-					else
-					{
+					} else	{
 						String xml = users.get(i);
-						if (isValidXMLUser(xml))
-						{
-							subUsers.add(xml);
-						}
-						else
-						{
+						if (!isValidXMLUser(xml)) {
 							String xml2 = makeValidXMLUser(xml);
 							if (xml2 != null)
-							{
 								subUsers.add(xml2);
-							}
-						}
+						} else
+							subUsers.add(xml);
 					}
 				}
 			}
-			if (modifiedUserIds != null && !modifiedUserIds.isEmpty())
-			{
+			if (modifiedUserIds != null && !modifiedUserIds.isEmpty()) 
 				_idService.insertIdModifiedObject(modifiedUserIds, "pdrUo");
-			}
-			if (!standardUsers.isEmpty())
-			{
+			if (!standardUsers.isEmpty()) 
 				checkAndInjestStandardUsers(standardUsers, userId, password);
-			}
 		}
-
+		log(0, "Done uploading new users");
 	}
 
 	/**
@@ -2052,11 +1991,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	@Override
 	public final IStatus updateAllData(final String userID, final String password, final IProgressMonitor monitor)
-			throws Exception
-	{
+			throws Exception {
 		IStatus updateStatus = Status.OK_STATUS;
 		Date currentUpdate;
-
 		
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
@@ -2070,6 +2007,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				+ password);
 		iLogger.log(log);
 		boolean success = true;
+		HashMap<String, Boolean> statuses = new HashMap<String, Boolean>();  
 		/////////////////////
 		// injest new objects
 		/////////////////////
@@ -2077,19 +2015,22 @@ public class RepositoryUpdateManager implements IUpdateManager
 			////////
 			// USERS
 			////////
-			log(IStatus.INFO, "Ingest of new Users", null);
+			//log(IStatus.INFO, "Ingest of new Users", null);
 			injestNewUsers(userID, password);
-			log(IStatus.OK, "New Users successfully ingested", null);
+			//log(IStatus.OK, "New Users successfully ingested", null);
+			statuses.put("ingest new users", true);
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			iLogger.log(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception at ALLIES library while ingesting new users: ", e));
 			e.printStackTrace();
+			statuses.put("ingest new users", false);
 		} catch (Exception e) {
 			success = false;
 			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new users: ", e);
 			iLogger.log(log);
 			e.printStackTrace();
+			statuses.put("ingest new users", false);
 		}
 		
 		// new project, local user still does not yet exist in repository
@@ -2102,6 +2043,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				log(1, "Second attempt to ingest new user objects to repo", null);
 				injestNewUsers(userID, password);
 				log(0, "New users successfully ingested into repo", null);
+				statuses.put("ingest new users", true);
 			} catch (PDRAlliesClientException e) {
 				updateStatus = Status.CANCEL_STATUS;
 				success = false;
@@ -2123,13 +2065,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest new reference objects", null);
 			injestNewReferences(monitor);
 			//log(0, "New references successfully ingested into repo");
+			statuses.put("ingest new mods", true);
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception in ALLIES while ingesting new references", e);
+			statuses.put("ingest new mods", false);
 		} catch (Exception e) {
 			success = false;
 			log(IStatus.WARNING, "Exception while ingesting new references: ", e);
+			statuses.put("ingest new mods", false);
 		}
 		
 		
@@ -2140,13 +2085,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest new persons into repo");
 			injestNewPersons(monitor);
 			//log(0, "New person objects successfully ingested into repo");
+			statuses.put("ingest new podl", true);
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception in ALLIES while ingesting new persons: ", e);
+			statuses.put("ingest new podl", false);
 		} catch (Exception e) {
 			success = false;
 			log(2, "Exception while ingesting new persons: ", e);
+			statuses.put("ingest new podl", false);
 		}
 		
 		
@@ -2158,20 +2106,24 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest new aspects into repo");
 			injestNewAspects(monitor);
 			//log(0, "New aspects successfully ingested into repo");
+			statuses.put("ingest new aodl", true);
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception in ALLIES while ingesting new aspects into repo: ", e);
+			statuses.put("ingest new aodl", false);
 		} catch (Exception e) {
 			success = false;
 			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new aspects", e);
 			iLogger.log(log);
+			statuses.put("ingest new aodl", false);
 		}
 
 		
 		////////////////////
 		// MODIFIED OBBJECTS
 		////////////////////
+		// XXX: local/repo version check
 		
 		// injest modified configs
 		try {
@@ -2181,16 +2133,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log(1, "Begin to ingest modified configurations into repo");
 			injestModifiedConfig();
 			log(0, "Done ingesting modified configurations");
+			statuses.put("update modified configs", true);
 		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception during modified configurations ingest into repo: ", e1);
+			statuses.put("update modified configs", false);
 		} catch (Exception e1) {
 			success = false;
 			log(IStatus.WARNING, "Exception during ingest of modified configurations into repo: ", e1);
+			statuses.put("update modified configs", false);
 		}
 
+		//////////////////////////
 		// injest midified objects
+		//////////////////////////
 		try	{
 			/////////////////
 			// MODIFIED USERS
@@ -2198,13 +2155,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest modified user objects into repo");
 			injestModifiedUsers();
 			//log(0, "Done ingesting modified users into repo");
+			statuses.put("update modified users", true);
 		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception during ingest of modified users", e1);
+			statuses.put("update modified users", false);
 		} catch (Exception e1) {
 			success = false;
 			log(2, "Exception during ingest of modified users", e1);
+			statuses.put("update modified users", false);
 		}
 
 		
@@ -2215,13 +2175,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest modified reference objects into repo");
 			injestModifiedReferences(monitor);
 			//log(0, "Done ingesting modified references");
+			statuses.put("update modified mods", true);
 		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception in ALLIES during ingest of modified references into repo: ", e1);
+			statuses.put("update modified mods", false);
 		} catch (Exception e1) {
 			success = false;
 			log(2, "Exception during ingest of modified references into repo: ", e1);
+			statuses.put("update modified mods", false);
 		}
 		
 		
@@ -2233,13 +2196,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest modified person objects into repo");
 			injestModifiedPersons(monitor);
 			//log(0, "Done ingesting modified person objects");
+			statuses.put("update modified podl", true);
 		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception in ALLIES during ingest of modified persons into repo: ", e1);
+			statuses.put("update modified podl", false);
 		} catch (Exception e1) {
 			success = false;
 			log(2, "Exception during ingest of modified persons into repo: ", e1);
+			statuses.put("update modified podl", false);
 		}
 
 		
@@ -2251,13 +2217,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(1, "Begin to ingest modified aspects into repo");
 			injestModifiedAspects(monitor);
 			//log(0, "Done ingesting modified aspects into repo");
+			statuses.put("update modified aodl", true);
 		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
 			log(2, "Exception in ALLIES during ingest of modified aspects into repo: ", e1);
+			statuses.put("update modified aodl", false);
 		} catch (Exception e1) {
 			success = false;
 			log(2, "Exception during ingest of modified aspects into repo: ", e1);
+			statuses.put("update modified aodl", false);
 		}
 		
 		
@@ -2276,11 +2245,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 		else if (success) {
 			log(0, "Ingest of local changes successfully completed. No conflicts.");
 			try	{
-				log(1, "Try to clear update states of local objects");
+				//log(1, "Try to clear update states of local objects");
 				_idService.clearAllUpdateStates();
-				log(0, "Update states cleared.");
+				//log(0, "Update states cleared.");
+				statuses.put("clear local object update states", true);
 			} catch (XQException e1) {
 				log(2, "Clearing update states of local objects failed: ", e1);
+				statuses.put("clear local object update states", false);
 			}
 		}
 
@@ -2293,117 +2264,104 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// get all new or modified data
 
 		// XXX neue oder modifizierte configs holen
-		try
-		{
+		try	{
 			getModifiedConfig();
-		}
-		catch (PDRAlliesClientException e1)
-		{
+			statuses.put("update remote configs modifications", true);
+		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
+			log(2, "Failed to download modified classification configurations ", e1);
+			statuses.put("update remote configs modifications", false);
 		}
 
-		// Date lastUpdate = null;
-		// try {
-		// lastUpdate =
-		// AEConstants.ADMINDATE_FORMAT.parse("2011-03-01T01:00:00");
-		// } catch (ParseException e) {
-		//
-		// log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
-		// }//
-		Date lastUpdate = _idService.getUpdateTimeStamp();
-		log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "lastUpdate timestamp: "
-				+ AEConstants.ADMINDATE_FORMAT.format(lastUpdate));
-		iLogger.log(log);
-		// getAll users
-		try
-		{
+		// frage zeitpunkt des letzten updates aus lokaler datenbank ab
+		// (default wert bei fehlern ist 1.1.2011)
+		Date lastUpdateLocal = _idService.getUpdateTimeStamp();
+		
+		
+		// push locally new, get ALL remote users and save them to local DB
+		try	{
+			////////
+			// USERS
+			////////
 			updateUsers(userID, password, monitor);
-		}
-		catch (Exception e)
-		{
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+			statuses.put("update remote user modifications", true);
+		} catch (Exception e) {
+			log(2, "Synchronization of local and remote user obejcts failed: ", e);
 			success = false;
+			statuses.put("update remote user modifications", false);
 		}
 
-		if (monitor.isCanceled())
-		{
+		if (monitor.isCanceled()) {
 			success = false;
 			return Status.CANCEL_STATUS;
-
 		}
-		try
-		{
+		
+		// get remote repo clock
+		try	{
 			currentUpdate = AEConstants.ADMINDATE_FORMAT.parse(Repository.getTime());
-		}
-		catch (Exception e)
-		{
+		} catch (Exception e){
+			// fallback: local time
+			log(2, "Retrieval of remote repo's server time failed, use local time instead", e);
 			currentUpdate = _facade.getCurrentDate();
 		}
-		log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "currentUpdate timestamp: "
-				+ AEConstants.ADMINDATE_FORMAT.format(currentUpdate));
-		iLogger.log(log);
+		
+		// XXX ist es ein problem, hier schon den timestamp des laufenden updates zu bestimmen?
+		log(1, "Local DB:\nSaved Timestamp of most recent repo update:\n"+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)+
+				"established timestamp of currently running update:\n" + AEConstants.ADMINDATE_FORMAT.format(currentUpdate));
 
-		if (lastUpdate.after(AEConstants.FIRST_EVER_UPDATE_TIMESTAMP))
-		{
-			try
-			{
-				updateModifiedObjects(monitor, lastUpdate);
-			}
-			catch (UnsupportedEncodingException e)
-			{
-				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
-			}
-			catch (XQException e)
-			{
-				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
-			}
-			catch (PDRAlliesClientException e)
-			{
+		// wenn letztes update der lokalen instanz nach 2011 war, also glaubwuerdig ist:
+		if (lastUpdateLocal.after(AEConstants.FIRST_EVER_UPDATE_TIMESTAMP)) {
+			try	{
+				// runterladen & speichern von objekten die auf remote seit lastUpdateLocal geaendert wurden
+				updateModifiedObjects(monitor, lastUpdateLocal);
+				statuses.put("update remote object modifications", true);
+			} catch (PDRAlliesClientException e) {
 				updateStatus = Status.CANCEL_STATUS;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				log(2, "Download of remote modified objects failed", e);
+				statuses.put("update remote object modifications", false);
+			} catch (Exception e) {
+				success = false;
+				log(2, "Download of remote modified objects failed", e);
+				statuses.put("update remote object modifications", false);
 			}
-		}
-		else
-		{
-			try
-			{
+		} // wenn letztes update der lokalen instanz erstes update ueberhaupt war??? 
+		else {
+			try {
+				// einfach alle remote objekte rnuterladen und speichern?
 				updateAllOccupiedObjects(monitor);
-			}
-			catch (UnsupportedEncodingException e)
-			{
-				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
-			}
-			catch (PDRAlliesClientException e)
-			{
+				statuses.put("clone remote objects", true);
+			} catch (PDRAlliesClientException e) {
 				updateStatus = Status.CANCEL_STATUS;
 				success = false;
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				log(2, "Download of remote repo failed ", e);
+				statuses.put("clone remote objects", false);
+			} catch (Exception e) {
+				success = false;
+				log(2, "Download of remote repo failed ", e);
+				statuses.put("clone remote objects", false);
 			}
 		}
-		if (success)
-		{
-			try
-			{
+		
+		// wenn alles gutgegangen ist, speicher zeitpunkt dieses updates
+		if (success) {
+			log(0, "***\nRepo update terminated successfully!\n***");
+			try {
+				// schreibe timestamp der laufenden synchro in DB
 				_idService.setUpdateTimeStamp(currentUpdate);
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "1new date timestamp: "
-						+ AEConstants.ADMINDATE_FORMAT.format(currentUpdate));
-				iLogger.log(log);
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "2new date timestamp: "
-						+ AEConstants.ADMINDATE_FORMAT.format(_idService.getUpdateTimeStamp()));
-				iLogger.log(log);
+			} catch (XQException e)	{
+				log(2, "Updating local DB timestamp "+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)
+						+" to "+AEConstants.ADMINDATE_FORMAT.format(currentUpdate)+" failed.", e);
 			}
-			catch (XQException e)
-			{
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "update not successful ");
-				iLogger.log(log);
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
-			}
+		} else {
+			String msg = "ERRORS during repo update!\n";
+			for (Entry<String, Boolean> st : statuses.entrySet())
+				msg += st.getKey() + ": " + st.getValue() + "\n";
+			log(2, msg);
 		}
+		log(1, "Timestamp of running update: "+ AEConstants.ADMINDATE_FORMAT.format(currentUpdate)
+				+ "\nTimestamp of latest update as saved in local DB: "
+				+AEConstants.ADMINDATE_FORMAT.format(_idService.getUpdateTimeStamp()));
 
 		monitor.done();
 		return updateStatus;
@@ -2411,7 +2369,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Update all occupied objects.
+	 * Download <b>all</b> aodl, podl and rodl objects from remote and save them to local DB.
 	 * @param monitor the monitor
 	 * @return the i status
 	 * @throws Exception
@@ -2428,48 +2386,41 @@ public class RepositoryUpdateManager implements IUpdateManager
 		List<IDRange> aspectRanges;
 		List<IDRange> referenceRanges;
 
-		personRanges = Utilities.getOccupiedObjectIDRanges(PDRType.PERSON, _repositoryId, _projectId, 1,
-				MAX_OBJECT_NUMBER);
-		aspectRanges = Utilities.getOccupiedObjectIDRanges(PDRType.ASPECT, _repositoryId, _projectId, 1,
-				MAX_OBJECT_NUMBER);
-		referenceRanges = Utilities.getOccupiedObjectIDRanges(PDRType.REFERENCE, _repositoryId, _projectId, 1,
-				MAX_OBJECT_NUMBER);
+		personRanges = Utilities.getOccupiedObjectIDRanges(PDRType.PERSON, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
+		aspectRanges = Utilities.getOccupiedObjectIDRanges(PDRType.ASPECT, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
+		referenceRanges = Utilities.getOccupiedObjectIDRanges(PDRType.REFERENCE, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
 		// calculate total work
-		if (personRanges != null && !personRanges.isEmpty())
-		{
-			for (IDRange range : personRanges)
-			{
-				totalPersons = totalPersons + range.getUpperBound() - range.getLowerBound();
+		if (personRanges != null && !personRanges.isEmpty()) { 
+			log(0, "Occupied global ID ranges for podl:");
+			for (IDRange range : personRanges) {
+				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
+				totalPersons = totalPersons + range.getUpperBound() - range.getLowerBound(); // XXX quatsch!
 			}
 		}
-		if (aspectRanges != null && !aspectRanges.isEmpty())
-		{
-			for (IDRange range : aspectRanges)
-			{
-				totalAspects = totalAspects + range.getUpperBound() - range.getLowerBound();
+		if (aspectRanges != null && !aspectRanges.isEmpty()) {
+			log(0, "Occupied global ID ranges for aodl:");
+			for (IDRange range : aspectRanges)	{
+				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
+				totalAspects = totalAspects + range.getUpperBound() - range.getLowerBound(); // XXX quatsch!
 			}
 		}
-		if (referenceRanges != null && !referenceRanges.isEmpty())
-		{
-			for (IDRange range : referenceRanges)
-			{
-				totalReferences = totalReferences + range.getUpperBound() - range.getLowerBound();
+		if (referenceRanges != null && !referenceRanges.isEmpty()) {
+			log(0, "Occupied global ID ranges for rodl mods:");
+			for (IDRange range : referenceRanges) {
+				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
+				totalReferences = totalReferences + range.getUpperBound() - range.getLowerBound(); // XXX quatsch!
 			}
 		}
 		totalWork = totalPersons + totalAspects + totalReferences;
 		monitor.beginTask("Updating from Repository. Number of Objects: " + totalWork, totalWork);
 		if (monitor.isCanceled())
-		{
 			return Status.CANCEL_STATUS;
-		}
 		col = "person";
 		int lowerBound = 1;
 		int upperBound = 1;
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			_dbCon.openCollection(col);
-			for (IDRange range : personRanges)
-			{
+			for (IDRange range : personRanges) {
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "persons range " + range.getLowerBound()
 						+ " upper b " + range.getUpperBound());
 				iLogger.log(log);
@@ -2495,7 +2446,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						s = null;
 						monitor.worked(1);
 					}
-					lowerBound = Math.min(lowerBound + 250, range.getUpperBound());
+					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX wieso 250?
 					if (monitor.isCanceled())
 					{
 						return Status.CANCEL_STATUS;
@@ -2557,7 +2508,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						monitor.worked(1);
 
 					}
-					lowerBound = Math.min(lowerBound + 250, range.getUpperBound());
+					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX warum nicht package_size?
 					if (monitor.isCanceled())
 					{
 						return Status.CANCEL_STATUS;
@@ -2630,7 +2581,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						_dbCon.storeQuick2DB(s, col, name);
 						monitor.worked(1);
 					}
-					lowerBound = Math.min(lowerBound + 250, range.getUpperBound());
+					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX 250?? nicht package size?
 					if (monitor.isCanceled())
 					{
 						return Status.CANCEL_STATUS;
@@ -2695,7 +2646,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Update modified objects.
+	 * Download objects modified in remote repo and save to local DB, if not conflicting
 	 * @param monitor the monitor
 	 * @param date the date
 	 * @return the i status
@@ -2706,6 +2657,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		String col = "util";
 		String name;
 		monitor.subTask("Connecting to Repository...");
+		log(1, "Query remote objects with modifications since "+AEConstants.ADMINDATE_FORMAT.format(date));
 		List<String> modObjs = Repository.getModifiedObjects(_repositoryId, _projectId,
 				AEConstants.ADMINDATE_FORMAT.format(date));
 		// calculate total work
@@ -2716,49 +2668,39 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Vector<String> aIds = new Vector<String>(modObjs.size());
 		Vector<String> uIds = new Vector<String>(modObjs.size());
 
-		if (modObjs.size() == 0)
-		{
+		if (modObjs.size() < 0) {
 			monitor.subTask("Your Database has already been updated. No Update necessary");
-		}
-		else
-		{
+		} else	{
+			log(1, "Retrieved "+modObjs.size()+" modified objects from remote. Begin to save to local DB..");
 			monitor.subTask("Inserting Modified Objects into Local DB...");
 
-			for (String s : modObjs)
-			{
+			for (String s : modObjs) {
 				// System.out.println(s);
 				name = extractPdrId(s);
-				if (name.startsWith("pdrPo"))
-				{
+				if (name.startsWith("pdrPo")) {
 					col = "person";
 					pIds.add(name);
 				}
-				if (name.startsWith("pdrAo"))
-				{
+				if (name.startsWith("pdrAo")) {
 					col = "aspect";
 					aIds.add(name);
 				}
-				if (name.startsWith("pdrRo"))
-				{
+				if (name.startsWith("pdrRo")) {
 					col = "reference";
 					rIds.add(name);
 				}
-				if (name.startsWith("pdrUo"))
-				{
+				if (name.startsWith("pdrUo")) {
 					col = "users";
 					uIds.add(name);
 				}
 				// System.out.println("modified object " + s);
 				name += ".xml";
 
-				synchronized (_dbCon)
-				{
-					if (!s.startsWith("no path in db registry") && checkVersions(s, col, name))
-					{
+				if (!s.startsWith("no path in db registry") && checkVersions(s, col, name))
+					synchronized (_dbCon) { 
+						System.out.println("Save object modified on server to local DB: "+col+" "+name+" "+s);
 						_dbCon.store2DB(s, col, name, false);
 					}
-				}
-				s = null;
 			}
 			monitor.worked(1);
 		}
@@ -2774,40 +2716,28 @@ public class RepositoryUpdateManager implements IUpdateManager
 		_dbCon.optimize(col);
 		monitor.subTask("Processing Update State of Objects...");
 
-		for (String id : pIds)
-		{
-			try
-			{
+		for (String id : pIds) {
+			try	{
 				_facade.getPersonsUpdateState().put(id, 1);
-			}
-			catch (Exception e)
-			{
+			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
 			}
 		}
 		_idService.insertIdUpdatedObjects(pIds, "pdrPo");
-		for (String id : aIds)
-		{
-			try
-			{
+		for (String id : aIds) {
+			try	{
 				_facade.getAspectsUpdateState().put(id, 1);
-			}
-			catch (Exception e)
-			{
+			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
 			}
 		}
 		_idService.insertIdUpdatedObjects(aIds, "pdrAo");
-		for (String id : rIds)
-		{
-			try
-			{
+		for (String id : rIds) {
+			try {
 				_facade.getReferencesUpdateState().put(id, 1);
-			}
-			catch (Exception e)
-			{
+			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
 			}
@@ -2819,8 +2749,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	@Override
 	public final IStatus updateUsers(final String userID, final String password, final IProgressMonitor monitor)
-			throws Exception
-	{
+			throws Exception {
+		// XXX wieso hier extra nochmal anmelden? passiert in aufrufender methode schon
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
 		_repositoryId = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "REPOSITORY_ID",
@@ -2830,63 +2760,54 @@ public class RepositoryUpdateManager implements IUpdateManager
 		String name;
 		Configuration.getInstance().setAxis2BaseURL(url.toString());
 		//FIXME nur als default
-		if (userID != null && password != null)
-		{
+		if (userID != null && password != null)	{
 			Configuration.getInstance().setPDRUser(userID, password);
-
+		} else {
+			// anmelden als repository (project) admin XXX warum projekt 2?
+			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
+			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		}
-		else
-		{
-			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
-		}
 
-		
+		// push all users locally identified as NEW to remote repo
 		injestNewUsers(userID, password);
 		
-		List<IDRange> ranges = Utilities.getOccupiedObjectIDRanges(PDRType.USER, _repositoryId, _projectId, 1,
-				MAX_OBJECT_NUMBER);
+		// retrieve remote repo user ID ranges 
+		List<IDRange> ranges = Utilities.getOccupiedObjectIDRanges(PDRType.USER, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
 		String col = "users";
 		int lowerBound = 1;
 		int upperBound = 1;
-		synchronized (_dbCon)
-		{
+		synchronized (_dbCon) {
 			_dbCon.openCollection(col);
-			for (IDRange range : ranges)
-			{
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "user range " + range.getLowerBound() + " upper b "
-						+ range.getUpperBound());
-				iLogger.log(log);
+			log(1, "Download remote repo user objects");
+			for (IDRange range : ranges) {
+				System.out.println("remote uodl ID range from " + range.getLowerBound() + " to " + range.getUpperBound());
 				lowerBound = range.getLowerBound();
 
-				while (upperBound < range.getUpperBound())
-				{
-					if (range.getUpperBound() - lowerBound <= PACKAGE_SIZE)
-					{
+				while (upperBound < range.getUpperBound()) {
+					if (range.getUpperBound() - lowerBound <= PACKAGE_SIZE)	{
 						upperBound = range.getUpperBound();
-					}
-					else
-					{
+					} else
 						upperBound = lowerBound + PACKAGE_SIZE;
-					}
 
+					// retrieve remote user objects
+					//try {
+					System.out.println("Download user objects in range");
 					Vector<String> objs = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, lowerBound,
 							upperBound);
-					for (String s : objs)
-					{
+					for (String s : objs) {
 						name = extractPdrId(s) + ".xml";
-						if (isValidUser(s))
-						{
-							_dbCon.storeQuick2DB(addUserPrefix(s), col, name);
-						}
-						else
-						{
+						if (isValidUser(s))	{
+							_dbCon.storeQuick2DB(addUserPrefix(s), col, name); // XXX warum uodl prefixes reinschrauben?
+						} else {
 							String us = addUserPrefix(s);
 							if (isValidUser(us))
-							{
-								_dbCon.storeQuick2DB(us, col, name);
-							}
+								_dbCon.storeQuick2DB(us, col, name); // XXX was macht die methode?
 						}
 					}
+					System.out.println("Stored "+objs.size()+" user objects from repo to local DB");
+					/*} catch (Exception e) {
+						log(2, "Updating user objects from remote failed: ", e);
+					}*/
 					lowerBound = Math.min(lowerBound + PACKAGE_SIZE, range.getUpperBound());
 				}
 			}
@@ -2895,7 +2816,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 			_dbCon.closeDB(col);
 			_idService.clearUserUpdateStates();
 			Configuration.getInstance().setPDRUser(userID, password);
-
 		}
 		return null;
 	}
@@ -3067,116 +2987,85 @@ public class RepositoryUpdateManager implements IUpdateManager
 	{
 		Collections.sort(standardUsers);
 		Vector<String> repoUsers = new Vector<String>(10);
-		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
-		try
-		{
+		// XXX wieso immer projekt nr 2?
+		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
+		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
+		try	{
 			repoUsers = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, 1, 9);
-		}
-		catch (PDRAlliesClientException e2)
-		{
-			// TODO Auto-generated catch block
-			e2.printStackTrace();
+		} catch (PDRAlliesClientException e2) {
+			log(2, "Download of remote repo user definitions failed: ", e2);
 		}
 		Collections.sort(repoUsers);
 		boolean found = false;
-		for (int i = 1; i < 10; i++)
-		{
+		for (int i = 1; i < 10; i++) {
 			String user = standardUsers.get(i - 1);
-			if (user != null && new Integer(extractPdrId(user).substring(14)) <= 9)
-			{
+			if (user != null && new Integer(extractPdrId(user).substring(14)) <= 9) {
 				found = false;
 				for (String u : repoUsers)
-				{
 					if (extractPdrId(u).equals(extractPdrId(user)))
-					{
 						found = true;
-					}
-				}
-				if (!found)
-				{
+				if (!found) {
 					Vector<String> injestUsers = new Vector<String>(1);
 					User newUser = null;
-					if (new Integer(extractPdrId(user).substring(14)) == 1)
-					{
+					if (new Integer(extractPdrId(user).substring(14)) == 1) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000001),
 								"pdrAdmin", "pdrrdp", new String[]
 								{"pdrAdmin", "admin", "user"}, "pdrAdmin", "pdrAdmin", "PDR-Administrator");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 2)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 2) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000002),
 								"admin", "admin", new String[]
 								{"admin", "user"}, "admin", "admin", "Project-Administrator");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 3)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 3) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000003),
 								"user", "user", new String[]
 								{"user"}, "user", "user", "Project-User");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 4)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 4) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000004),
 								"guest", "guest", new String[]
 								{"guest"}, "guest", "guest", "Project-Guest");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 5)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 5) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000005),
 								"computer", "computer", new String[]
 								{"user"}, "computer", "computer", "computer");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 6)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 6) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000006),
 								"dummy", "dummy", new String[]
 								{"dummy"}, "dummy", "dummy", "dummy");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 7)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 7) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000007),
 								"dummy", "dummy", new String[]
 								{"dummy"}, "dummy", "dummy", "dummy");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 8)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 8) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000008),
 								"dummy", "dummy", new String[]
 								{"dummy"}, "dummy", "dummy", "dummy");
-					}
-					else if (new Integer(extractPdrId(user).substring(14)) == 9)
-					{
+					} else if (new Integer(extractPdrId(user).substring(14)) == 9) {
 						newUser = _userManager.createUser(new PdrId("pdrUo", _repositoryId, _projectId, 100000009),
 								"dummy", "dummy", new String[]
 								{"dummy"}, "dummy", "dummy", "dummy");
 					}
-					try
-					{
+					
+					try	{
 						user = new UserXMLProcessor().writeToXML(newUser);
-					}
-					catch (XMLStreamException e1)
-					{
+					} catch (XMLStreamException e1)	{
 						// TODO Auto-generated catch block
 						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
 					}
+					
 					injestUsers.add(removeUserPrefix(user));
-					try
-					{
+					try	{
 						Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
-					}
-					catch (InvalidIdentifierException e)
-					{
+					} catch (InvalidIdentifierException e) {
 						// TODO Auto-generated catch block
 						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
-					}
-					catch (PDRAlliesClientException e)
-					{
+					} catch (PDRAlliesClientException e) {
 						// TODO Auto-generated catch block
 						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
 					}
 				}
 			}
 		}
+		// reset repo authentification to locally logged in user creds
 		Configuration.getInstance().setPDRUser(userId, password);
 	}
 

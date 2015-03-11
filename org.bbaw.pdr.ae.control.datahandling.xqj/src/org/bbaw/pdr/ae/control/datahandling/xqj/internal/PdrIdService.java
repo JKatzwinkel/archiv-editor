@@ -573,13 +573,10 @@ public class PdrIdService implements IPdrIdService
 	}
 
 	@Override
-	public final Date getUpdateTimeStamp() throws Exception
-	{
+	public final Date getUpdateTimeStamp() throws Exception {
 		Date date;
-		try
-		{
-			synchronized (_dbCon)
-			{
+		try	{
+			synchronized (_dbCon) {
 				XQConnection con = _dbCon.getConnection();
 				XQPreparedExpression xqp;
 				String query = "for $x in collection(\"management\")//management\n" + "return string($x/@lastUpdate)";
@@ -589,11 +586,8 @@ public class PdrIdService implements IPdrIdService
 				XQResultSequence xqs = xqp.executeQuery();
 				String d = "";
 
-				while (xqs.next())
-				{
-
+				while (xqs.next()) {
 					d = xqs.getItemAsString(null);
-
 					break;
 				}
 				date = AEConstants.ADMINDATE_FORMAT.parse(d);
@@ -601,19 +595,14 @@ public class PdrIdService implements IPdrIdService
 				con.close();
 				return date;
 			}
-		}
-		catch (XQException e)
-		{
-
+		} catch (XQException e) {
+			e.printStackTrace();
+			// fallback: date in 2011
+			return AEConstants.FIRST_EVER_UPDATE_TIMESTAMP;
+		} catch (ParseException e) {
+			// fallback: date in 2011
 			e.printStackTrace();
 			return AEConstants.FIRST_EVER_UPDATE_TIMESTAMP;
-		}
-		catch (ParseException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return AEConstants.FIRST_EVER_UPDATE_TIMESTAMP;
-
 		}
 	}
 
@@ -718,15 +707,13 @@ public class PdrIdService implements IPdrIdService
 	}
 
 	@Override
-	public final void insertIdModifiedObject(final Vector<String> modifiedIds, final String type) throws Exception
-	{
+	public final void insertIdModifiedObject(final Vector<String> modifiedIds, final String type) throws Exception {
 		// alle als modifiziert gelisteten objekte (von den uebergebenen)
 		// werden in persistente collections kopiert und dann aus 
 		// der modified liste geloescht, gelten also fuerderhin als
 		// ohne lokale aenderungen?
 		String insert = "insert nodes  <modified> ";
-		for (String id : modifiedIds)
-		{
+		for (String id : modifiedIds) {
 			// System.out.println(id);
 			insert += "<id>" + id + "</id>\n";
 		}
@@ -1040,11 +1027,8 @@ public class PdrIdService implements IPdrIdService
 	}
 
 	@Override
-	public final void setUpdateTimeStamp(final Date date) throws Exception
-	{
-
-		synchronized (_dbCon)
-		{
+	public final void setUpdateTimeStamp(final Date date) throws Exception {
+		synchronized (_dbCon) {
 			XQConnection con = _dbCon.getConnection();
 			XQPreparedExpression xqp;
 			_dbCon.openCollection("management");

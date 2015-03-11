@@ -41,6 +41,7 @@ import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.stream.XMLStreamException;
 
 import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.common.AEPluginIDs;
@@ -53,6 +54,7 @@ import org.bbaw.pdr.ae.config.model.ConfigItem;
 import org.bbaw.pdr.ae.config.model.DataType;
 import org.bbaw.pdr.ae.control.core.PDRConfigProvider;
 import org.bbaw.pdr.ae.control.core.UserRichtsChecker;
+import org.bbaw.pdr.ae.control.core.XMLProcessor;
 import org.bbaw.pdr.ae.control.facade.Facade;
 import org.bbaw.pdr.ae.control.interfaces.AMainSearcher;
 import org.bbaw.pdr.ae.control.interfaces.IPdrIdService;
@@ -3552,8 +3554,15 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 			public void widgetSelected(final SelectionEvent event)
 			{
 				
-				if (isValidInput())
+				if (isValidInput()) // XXX simply returns true
 				{
+					try {
+						System.out.println("Aspect Editor quit via SAVE button with current aspect looking like: "
+								+new XMLProcessor().writeToXML(_currentAspect));
+					} catch (XMLStreamException e) {
+						System.out.println("Aspect Editor: aspect not serializable!");
+						e.printStackTrace();
+					}
 					okPressed();
 				}
 			}
