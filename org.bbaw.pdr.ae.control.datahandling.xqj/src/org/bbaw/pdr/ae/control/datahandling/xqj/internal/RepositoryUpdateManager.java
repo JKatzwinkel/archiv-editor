@@ -2328,7 +2328,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		} // wenn letztes update der lokalen instanz erstes update ueberhaupt war??? 
 		else {
 			try {
+				/////////////////////////////////////////////////////////
 				// einfach alle remote objekte rnuterladen und speichern?
+				/////////////////////////////////////////////////////////
 				updateAllOccupiedObjects(monitor);
 				statuses.put("clone remote objects", true);
 			} catch (PDRAlliesClientException e) {
@@ -2394,21 +2396,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log(0, "Occupied global ID ranges for podl:");
 			for (IDRange range : personRanges) {
 				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
-				totalPersons = totalPersons + range.getUpperBound() - range.getLowerBound(); // XXX quatsch!
+				totalPersons = totalPersons + range.getUpperBound() - range.getLowerBound() + 1;
 			}
 		}
 		if (aspectRanges != null && !aspectRanges.isEmpty()) {
 			log(0, "Occupied global ID ranges for aodl:");
 			for (IDRange range : aspectRanges)	{
 				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
-				totalAspects = totalAspects + range.getUpperBound() - range.getLowerBound(); // XXX quatsch!
+				totalAspects = totalAspects + range.getUpperBound() - range.getLowerBound() + 1;
 			}
 		}
 		if (referenceRanges != null && !referenceRanges.isEmpty()) {
 			log(0, "Occupied global ID ranges for rodl mods:");
 			for (IDRange range : referenceRanges) {
 				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
-				totalReferences = totalReferences + range.getUpperBound() - range.getLowerBound(); // XXX quatsch!
+				totalReferences = totalReferences + range.getUpperBound() - range.getLowerBound() + 1;
 			}
 		}
 		totalWork = totalPersons + totalAspects + totalReferences;
@@ -2416,20 +2418,18 @@ public class RepositoryUpdateManager implements IUpdateManager
 		if (monitor.isCanceled())
 			return Status.CANCEL_STATUS;
 		col = "person";
-		int lowerBound = 1;
-		int upperBound = 1;
+		int counter = 0;
+		int lowerBound = 0;
+		int upperBound = 0; // fixes issue #3949, where only person object in repo had id=1
 		synchronized (_dbCon) {
 			_dbCon.openCollection(col);
+			String msg = "Start downloading "+totalPersons+" person objects in "+personRanges.size()+" id ranges..";
 			for (IDRange range : personRanges) {
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "persons range " + range.getLowerBound()
-						+ " upper b " + range.getUpperBound());
-				iLogger.log(log);
+				msg += "\n persons range " + range.getLowerBound() + " upper bound " + range.getUpperBound()+"";
 				lowerBound = range.getLowerBound();
 
-				while (upperBound < range.getUpperBound())
-				{
-					if (range.getUpperBound() - lowerBound <= PACKAGE_SIZE)
-					{
+				while (upperBound < range.getUpperBound()) {
+					if (range.getUpperBound() - lowerBound <= PACKAGE_SIZE)	{
 						upperBound = range.getUpperBound();
 					}
 					else
@@ -2446,6 +2446,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						s = null;
 						monitor.worked(1);
 					}
+					counter += objs.size();
 					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX wieso 250?
 					if (monitor.isCanceled())
 					{
@@ -2453,6 +2454,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					}
 				}
 			}
+			log(1, msg);
 			_dbCon.closeDB(col);
 		}
 		if (monitor.isCanceled())
@@ -2472,18 +2474,18 @@ public class RepositoryUpdateManager implements IUpdateManager
 			monitor.done();
 			return Status.CANCEL_STATUS;
 		}
+		String logmsg = "\nRemote person objects saved to local DB: "+counter+"/"+totalPersons;
+		counter = 0;
+
 		// aspect
 		col = "aspect";
-		lowerBound = 1;
-		upperBound = 1;
-
-		for (IDRange range : aspectRanges)
-		{
-			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "aspects range " + range.getLowerBound() + " upper b "
-					+ range.getUpperBound());
-			iLogger.log(log);
+		lowerBound = 0;
+		upperBound = 0;
+		String msg = "Start downloading "+totalAspects+" aspect objects in "+aspectRanges.size()+" id ranges..";
+		for (IDRange range : aspectRanges) {
+			msg += "\n aspects range " + range.getLowerBound() + " upper bound " + range.getUpperBound()+"";
 			lowerBound = range.getLowerBound();
-			synchronized (_dbCon)
+			synchronized (_dbCon) // XXX warum wird hier bei jeder einzelnen range gelockt und nicht wie bei podl und mods ueber alle?
 			{
 				_dbCon.openCollection(col);
 				while (upperBound < range.getUpperBound())
@@ -2508,12 +2510,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 						monitor.worked(1);
 
 					}
+					counter += objs.size();
 					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX warum nicht package_size?
 					if (monitor.isCanceled())
 					{
 						return Status.CANCEL_STATUS;
 					}
 				}
+				log(1, msg);
 				_dbCon.closeDB(col);
 
 			}
@@ -2547,17 +2551,19 @@ public class RepositoryUpdateManager implements IUpdateManager
 			monitor.done();
 			return Status.CANCEL_STATUS;
 		}
+		logmsg += "\nRemote aspect objects saved to local DB: "+counter+"/"+totalAspects;
+		counter = 0;
+		
 		col = "reference";
 		lowerBound = 1;
 		upperBound = 1;
 		synchronized (_dbCon)
 		{
+			msg = "Start downloading "+totalReferences+" reference objects in "+referenceRanges.size()+" id ranges..";
 			_dbCon.openCollection(col);
 			for (IDRange range : referenceRanges)
 			{
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "references range " + range.getLowerBound()
-						+ " upper b " + range.getUpperBound());
-				iLogger.log(log);
+				msg += "\n references range " + range.getLowerBound()+ " upper bound " + range.getUpperBound();
 				lowerBound = range.getLowerBound();
 				monitor.subTask("Updating " + totalReferences + " References from Repository " + lowerBound);
 
@@ -2575,19 +2581,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 							lowerBound, upperBound);
 					for (String s : objs)
 					{
-						System.out.println(s);
-						System.out.println();
+						//System.out.println(s);
+						//System.out.println();
 						name = extractPdrId(s) + ".xml";
 						_dbCon.storeQuick2DB(s, col, name);
 						monitor.worked(1);
 					}
-					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX 250?? nicht package size?
+					counter += objs.size();
+					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX 250?? nicht package size? oder package size + 1?
 					if (monitor.isCanceled())
 					{
 						return Status.CANCEL_STATUS;
 					}
 				}
 			}
+			log(1, msg);
 
 			_dbCon.closeDB(col);
 			if (monitor.isCanceled())
@@ -2610,7 +2618,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 			col = "reference";
 			_dbCon.optimize(col);
 			monitor.done();
-
+			logmsg += "\nRemote reference objects saved to local DB: "+counter+"/"+totalReferences;
+			log(1, logmsg);
+			
+			
 			monitor.subTask("Processing Update State of Objects...");
 
 			try

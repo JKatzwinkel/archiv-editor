@@ -2202,6 +2202,8 @@ public class AspectsView extends ViewPart implements Observer, ISelectionProvide
 										final String id = rStm.getRelations().firstElement().getObject().toString();
 										String name = id;
 										PdrObject obj = _facade.getPdrObject(new PdrId(id));
+										imLabel.setLayoutData(new GridData());
+										imLabel.pack();
 										if (obj != null)
 										{
 											name = obj.getDisplayName(27);
@@ -2217,18 +2219,15 @@ public class AspectsView extends ViewPart implements Observer, ISelectionProvide
 											{
 												imLabel.setImage(_imageReg.get(IconsInternal.REFERENCE));
 											}
+											Link person = new Link(rightcomp, SWT.NONE);
+											person.addSelectionListener(_aspectsSelectionAdapter);
+											person.setText("<a href=\"native\">" + name + "</a>");
+											person.setToolTipText(obj.getDisplayName()); // #3949 nullpointer in this line due to missing person obj
+											person.setData(id);
+											person.setBackground(WHITE_COLOR);
+											person.setLayoutData(new GridData());
+											person.pack();
 										}
-										imLabel.setLayoutData(new GridData());
-										imLabel.pack();
-										Link person = new Link(rightcomp, SWT.NONE);
-										person.addSelectionListener(_aspectsSelectionAdapter);
-										person.setText("<a href=\"native\">" + name + "</a>");
-										if (obj != null) // attempt to fix #3949 missing person problem
-											person.setToolTipText(obj.getDisplayName()); // FIXME: #3949 nullpointer in this line
-										person.setData(id);
-										person.setBackground(WHITE_COLOR);
-										person.setLayoutData(new GridData());
-										person.pack();
 
 									}
 
