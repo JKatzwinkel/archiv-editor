@@ -1514,6 +1514,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 				if (!idMap.isEmpty()) {
 					log(1, "Server returned ID map of length "+idMap.size());
 					String newID;
+					// XXX
+					// XXX hier werden zwar die IDs und querverweise in allen objekten der lokalen DB
+					// aktualisiert, allerdings nicht diejenigen in den objektkopien die in der liste 'references'
+					// liegen. Deshalb kann es passieren (z.b. in issue 3487), dasz objekte mit querverweisen
+					// auf lokale IDs hochgeladen werden sollen, die es lokal gar nicht mehr gibt und mit denen
+					// der server sowieso nichts anfangen kann.
+					// Evtl. kann man das problem dadurch beheben, dasz man einfach nicht stueckelt, sondern
+					// alle objekte gleichzeitig zum server schickt. TODO Mal drueber nachdenken
+					// XXX
 					for (Identifier id : idMap.keySet()) {
 						newID = idMap.get(id).toString();
 						// look up global mapping for current id and append it to modifiedreferenceIds
