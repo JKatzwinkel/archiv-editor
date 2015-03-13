@@ -434,6 +434,7 @@ public class AspectSaxHandler extends DefaultHandler
 	@Override
 	public final void endElement(final String u, final String name, final String qn)
 	{
+		indent --;
 		// System.out.println("End Element:\t\"" + name + "\"");
 		if (name.equals("aspect") || name.equals("aodl:aspect") || qn.equals("aspect") || qn.equals("aodl:aspect"))
 		{
@@ -616,18 +617,24 @@ public class AspectSaxHandler extends DefaultHandler
 	{
 	}
 
-	/**
-	 * @param u uri
-	 * @param name local name
-	 * @param qn QName
-	 * @param a attributes
-	 * @see org.xml.sax.helpers.DefaultHandler#startElement(java.lang.String,
-	 *      java.lang.String, java.lang.String, org.xml.sax.Attributes)
-	 */
+	private int indent=0;
+	
+	private String indent() {
+		String res = "";
+		for (int i=0; i<indent; i++)
+			res+=" ";
+		return res;
+	}	
+
 	@Override
 	public final void startElement(final String u, final String name, final String qn, final Attributes a)
-			throws SAXException
+			throws SAXException			
 	{
+		//System.out.print("A: "+indent()+"<"+name+" ");
+		//for (int i = 0; i < a.getLength(); i++)
+			//System.out.print(a.getLocalName(i)+"='"+a.getValue(i)+"' ");
+		//System.out.println(">");
+		indent++;		
 		if (_monitor != null)
 		{
 			if (_pdrObjects.length < 25)

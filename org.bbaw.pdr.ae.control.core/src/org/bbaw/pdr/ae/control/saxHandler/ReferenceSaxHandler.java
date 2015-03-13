@@ -79,7 +79,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 	// PDRObjectDisplayNameProcessor();
 	private HashMap<PdrId, ReferenceMods> _refs = new HashMap<PdrId, ReferenceMods>();
 
-	/** The ref. */
+	/** Our return value. Mods Reference instance being populated with XML contents here. */
 	private ReferenceMods _ref = null;
 
 	/** The title info. */
@@ -286,13 +286,16 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 	/** The ref templates. */
 	private HashMap<String, ReferenceModsTemplate> _refTemplates = new HashMap<String, ReferenceModsTemplate>();
 
-	/** The ref template. */
+	/** Current Reference Template which XML contents are imported into. */
 	private ReferenceModsTemplate _refTemplate = null;
 
 	/** The _result object. */
 	private Object _resultObject;
+	
+	private int indent=0;
 
-	@Override
+	
+		@Override
 	public final void characters(final char[] ch, final int start, final int length) throws SAXException
 	{
 		if (_ti)
@@ -557,6 +560,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 	@Override
 	public final void endElement(final String uri, final String localName, final String qName) throws SAXException
 	{
+		indent--;
 		if (localName.equals("documentation") || qName.equals("documentation")
 				|| localName.equals("mods:documentation") || qName.equals("mods:documentation"))
 		{
@@ -937,13 +941,25 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 	@Override
 	public void startDocument() throws SAXException
 	{
-
+		
 	}
 
+	private String indent() {
+		String res = "";
+		for (int i=0; i<indent; i++)
+			res+=" ";
+		return res;
+	}
+	
 	@Override
 	public void startElement(final String uri, final String localName, final String qName, final Attributes atts)
 			throws SAXException
 	{
+		//System.out.print(" "+indent()+"<"+localName+" ");
+		//for (int i = 0; i < atts.getLength(); i++)
+			//System.out.print(atts.getLocalName(i)+"='"+atts.getValue(i)+"' ");
+		//System.out.println(">");
+		indent++;
 		if (localName.equals("template") || qName.equals("template"))
 		{
 			_template = true;
@@ -997,11 +1013,11 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 			}
 		}
 
-		if ((localName.equals("r") || qName.equals("r")) && !_template)
-		{
+		if ((localName.equals("mods") || qName.equals("mods:mods")) && !_template) // mods ist wahrscheinlich besser als "r",
+		{													// sonst kommt es vor, dasz relatedItems nicht instanziiert werden
 			for (int i = 0; i < atts.getLength(); i++)
 			{
-				if (atts.getQName(i).equals("id"))
+				if (atts.getQName(i).equals("ID"))
 				{
 					_ref = new ReferenceMods(atts.getValue(i));
 					break;
@@ -1009,7 +1025,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 			}
 			_relatedItems = new Vector<RelatedItem>(1);
 		}
-		else if (localName.equals("r") && _template)
+		else if (localName.equals("mods") && _template) // XXX hier auch? mods ist unterelement von refTemplate, also bestimmt ja
 		{
 			// try {
 			// ref = new ReferenceMods(new
@@ -1396,7 +1412,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 			}
 			if (!_relSeries)
 			{
-				_relatedItems.add(_relatedItem);
+				_relatedItems.add(_relatedItem); // FIXME #3720: Nullpointer
 			}
 		}
 		else if (localName.equals("part") || qName.equals("part") || localName.equals("mods:part")

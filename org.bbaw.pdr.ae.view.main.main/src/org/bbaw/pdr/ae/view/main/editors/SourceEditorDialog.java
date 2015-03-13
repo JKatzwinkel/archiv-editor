@@ -35,12 +35,15 @@ import java.util.Observable;
 import java.util.Observer;
 import java.util.Vector;
 
+import javax.xml.stream.XMLStreamException;
+
 import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.common.AEVIEWConstants;
 import org.bbaw.pdr.ae.common.CommonActivator;
 import org.bbaw.pdr.ae.common.NLMessages;
 import org.bbaw.pdr.ae.common.icons.IconsInternal;
 import org.bbaw.pdr.ae.control.core.UserRichtsChecker;
+import org.bbaw.pdr.ae.control.core.XMLProcessor;
 import org.bbaw.pdr.ae.control.facade.Facade;
 import org.bbaw.pdr.ae.control.interfaces.AMainSearcher;
 import org.bbaw.pdr.ae.control.interfaces.IPdrIdService;
@@ -3907,6 +3910,14 @@ public class SourceEditorDialog extends TitleAreaDialog implements Observer
 		{
 			_compositeRef = new Composite(_compositeSourcePanel, SWT.NONE);
 		}
+		
+		try {
+			System.out.println(new XMLProcessor().writeToXML(_currentReference));
+		} catch (XMLStreamException e) {
+			System.out.println("Current Reference unserializable!");
+			e.printStackTrace();
+		}
+		
 		_compositeRef.setLayoutData(new GridData());
 		((GridData) _compositeRef.getLayoutData()).horizontalAlignment = SWT.FILL;
 		((GridData) _compositeRef.getLayoutData()).grabExcessHorizontalSpace = true;

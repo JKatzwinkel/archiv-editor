@@ -33,6 +33,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
+import java.util.Vector;
 
 import javax.xml.stream.XMLEventFactory;
 import javax.xml.stream.XMLEventWriter;
@@ -42,6 +43,7 @@ import javax.xml.stream.events.Characters;
 import javax.xml.stream.events.EndElement;
 import javax.xml.stream.events.StartDocument;
 import javax.xml.stream.events.StartElement;
+import javax.xml.stream.events.XMLEvent;
 
 import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.control.internal.Activator;
@@ -90,11 +92,20 @@ public class XMLProcessor implements XMLProcessorInterface
 
 	/** Logger. */
 	private static ILog iLogger = AEConstants.ILOGGER;
-	/** status. */
-	private IStatus _log;
 
+	private String logmsg = "";
+	
+	private void buflog(String line) {
+		logmsg += line + "\n";
+	}
+	
+	private void log(int level, String msg, Exception e) {
+		iLogger.log(new Status(level, Activator.PLUGIN_ID, msg, e));
+	}
+	
+	
 	/**
-	 * Creates the node.
+	 * Creates {@link Concurrence} node.
 	 * @param eventWriter the event writer
 	 * @param name the name of node
 	 * @param c the concurrence
@@ -197,39 +208,47 @@ public class XMLProcessor implements XMLProcessorInterface
 	// }
 
 	/**
-	 * Creates the node.
+	 * Creates Identifier node.
 	 * @param eventWriter the event writer
 	 * @param name the name
 	 * @param i the identifier
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final Identifier i)
+	private Vector<XMLEvent> createNode(final XMLEventWriter eventWriter, final String name, final Identifier i)
 			throws XMLStreamException
 	{
+		Vector<XMLEvent> idXmlEvs = new Vector<>();
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement("podl", "http://pdr.bbaw.de/namespaces/podl/", name);
-
-		eventWriter.add(sElement);
-		if (i.getProvider() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("provider", i.getProvider()));
-		}
-		if (i.getQuality() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("quality", i.getQuality()));
-		}
-		if (i.getAuthority() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("authority", i.getAuthority().toString()));
-		}
-
+		idXmlEvs.add(sElement);
+		// attr provider is required
+		if (i.getProvider() == null) {
+			buflog("Podl warning: identifier without provider attribute");
+			return null;
+		} else 
+			idXmlEvs.add(eventFactory.createAttribute("provider", i.getProvider()));
+		
+		if (i.getQuality() == null) {
+			buflog("Podl warning: identifier without quality attribute");
+			return null;
+		} else		
+			idXmlEvs.add(eventFactory.createAttribute("quality", i.getQuality()));
+		
+		if (i.getAuthority() == null) {
+			buflog("Podl warning: identifier without authority attribute");
+			return null;
+		} else
+			idXmlEvs.add(eventFactory.createAttribute("authority", i.getAuthority().toString()));
+		
 		// Create Content
 		Characters characters = eventFactory.createCharacters(i.getIdentifier());
-		eventWriter.add(characters);
+		idXmlEvs.add(characters);
 		// Create End node
 		EndElement eElement = eventFactory.createEndElement("podl", "http://pdr.bbaw.de/namespaces/podl/", name);
-		eventWriter.add(eElement);
+		idXmlEvs.add(eElement);
+		
+		return idXmlEvs;
 
 
 	}
@@ -1005,50 +1024,51 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param relationStm 
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final Relation relation, RelationStm relationStm)
+	private Vector<XMLEvent> createNode(final XMLEventWriter eventWriter, final String name, final Relation relation, RelationStm relationStm)
 			throws XMLStreamException
 	{
+		// assemble xml event list, but don't write it to stream yet,
+		// as we don't want to append no invalid relation element
+		// and need to let relationStm know if it even has valid
+		// sub elements
+		Vector<XMLEvent> relXmlEvents = new Vector<XMLEvent>();
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
 
-		eventWriter.add(sElement);
+		relXmlEvents.add(sElement);
 
-		if (relation.getObject() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("object", relation.getObject().toString()));
-
-		}
-		else
-		{
-			eventWriter.add(eventFactory.createAttribute("object", relationStm.getSubject().toString()));
-
-		}
-		if (relation.getProvider() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("provider", relation.getProvider()));
-
-		}
+		// attributes object, provider are required
+		// @object
+		if (relation.getObject() == null) {
+			buflog("MODS Model violation: no object attribute in relation element!!");
+			return null;
+			//eventWriter.add(eventFactory.createAttribute("object", relationStm.getSubject().toString())); // XXX oh, shit!
+		} else 
+			relXmlEvents.add(eventFactory.createAttribute("object", relation.getObject().toString()));
+		
+		// @provider
+		if (relation.getProvider() == null)	{
+			buflog("MODS Model violation: no provider attribute in relation element!!");
+			return null;
+		} else 
+			relXmlEvents.add(eventFactory.createAttribute("provider", relation.getProvider()));
+		
 		if (relation.getRClass() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("class", relation.getRClass()));
+			relXmlEvents.add(eventFactory.createAttribute("class", relation.getRClass()));
 
-		}
 		if (relation.getContext() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("context", relation.getContext()));
+			relXmlEvents.add(eventFactory.createAttribute("context", relation.getContext()));
 
-		}
+		
 		// Create Content
-		if (relation.getRelation() != null)
-		{
+		if (relation.getRelation() != null) {
 			Characters characters = eventFactory.createCharacters(relation.getRelation());
-			eventWriter.add(characters);
-
+			relXmlEvents.add(characters);
 		}
-		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "relation"));
-
-
+		relXmlEvents.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "relation"));
+		
+		return relXmlEvents;
 	}
 
 	/**
@@ -1061,31 +1081,39 @@ public class XMLProcessor implements XMLProcessorInterface
 	private void createNode(final XMLEventWriter eventWriter, final String name, final RelationStm relStm)
 			throws XMLStreamException
 	{
+		// queue xml events up before writing to stream, in case
+		// sub elements violate model
+		Vector<XMLEvent> relStmXmlEvents = new Vector<XMLEvent>(); 
+		
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
-
-		eventWriter.add(sElement);
-		if (relStm.getSubject() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("subject", relStm.getSubject().toString()));
-		}
-
-		// Create Content
-		if (relStm.getRelations() != null)
-		{
-			for (int j = 0; j < relStm.getRelations().size(); j++)
-			{
-				createNode(eventWriter, "relation", relStm.getRelations().get(j), relStm);
-
+		
+		relStmXmlEvents.add(sElement);
+		
+		if (relStm.getSubject() == null) {
+			buflog("Aodl Model violation: relationStm without subject attribute!");
+		} else
+			relStmXmlEvents.add(eventFactory.createAttribute("subject", relStm.getSubject().toString()));
+	
+		// Create subelements
+		if (relStm.getRelations() != null) {
+			// queue up sub element xml events separately
+			for (Relation rel : relStm.getRelations()) {
+				Vector<XMLEvent> relXmlElements =  createNode(eventWriter, "relation", rel, relStm);
+				if (relXmlElements != null) // 
+					relStmXmlEvents.addAll(relXmlElements);
 			}
-
-		}
+		} else // don't append this relationStm node to xml
+			return;
+		
 		// Create End node
 		EndElement eElement = eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
-		eventWriter.add(eElement);
+		relStmXmlEvents.add(eElement);
 
-
+		// write relationStm xml to stream
+		for (XMLEvent e : relStmXmlEvents)
+			eventWriter.add(e);
 	}
 
 	/**
@@ -1317,58 +1345,50 @@ public class XMLProcessor implements XMLProcessorInterface
 	private void createNode(final XMLEventWriter eventWriter, final String name, final ValidationStm validationStm,
 			final String prefix, final String uri, PdrMetaObject aspect) throws XMLStreamException
 	{
+		// create validationStm element
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
 
-
 		eventWriter.add(sElement);
-		if (validationStm.getAuthority() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("authority", validationStm.getAuthority().toString()));
-		}
-		else
-		{
+		if (validationStm.getAuthority() == null) {
+			buflog("Aodl warning: validationStm without authority. falling back to revision authority");  
 			eventWriter.add(eventFactory.createAttribute("authority", aspect.getRecord().getRevisions().get(0).getAuthority().toString()));
-		}
+		} else
+			eventWriter.add(eventFactory.createAttribute("authority", validationStm.getAuthority().toString()));
 
 
-		if (validationStm.getReference() != null)
-		{
+		if (validationStm.getReference() != null) {
+			// XXX aodl schema actually does not limit references to only one per validationStm...
 			Reference ref = validationStm.getReference();
 			sElement = eventFactory.createStartElement(prefix, uri, "reference");
 
 			eventWriter.add(sElement);
 			if (ref.getInternal() != null)
-			{
 				eventWriter.add(eventFactory.createAttribute("internal", ref.getInternal()));
-			}
-			if (ref.getQuality() != null)
-			{
+
+			if (ref.getQuality() != null) // XXX aodl schema does actually not require quality attribute, but rodl editor does...
 				eventWriter.add(eventFactory.createAttribute("quality", ref.getQuality()));
-			}
-			if (ref.getAuthority() != null)
-			{
-				eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
-			}
+
+			// XXX authority attribute is not even a part in aodl schema reference definition...!
+			//if (ref.getAuthority() != null)
+				//eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
 
 			// Create Content
-			if (ref.getSourceId() != null)
-			{
+			if (ref.getSourceId() != null) {
 				Characters characters = eventFactory.createCharacters(ref.getSourceId().toString());
 				eventWriter.add(characters);
-			}
+			} else 
+				buflog("Aodl violation: no source Id in reference elements!");
+			
 			EndElement eElement = eventFactory.createEndElement(prefix, uri, "reference");
 			eventWriter.add(eElement);
-
 		}
 
 		sElement = eventFactory.createStartElement(prefix, uri, "interpretation");
-
 		eventWriter.add(sElement);
 
-		if (validationStm.getInterpretation() != null)
-		{
+		if (validationStm.getInterpretation() != null) {
 			Characters characters = eventFactory.createCharacters(validationStm.getInterpretation());
 			eventWriter.add(characters);
 		}
@@ -1447,7 +1467,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 		// FIXME Workaround
 		text = text + " ";
-		// System.out.println("injester, tr.start " + tr.getStart() + " ln " +
+		// buflog("injester, tr.start " + tr.getStart() + " ln " +
 		// tr.getLength());
 		String subText = text.substring(tr.getStart(), Math.min(tr.getStart() + tr.getLength(), text.length()));
 		Characters characters = eventFactory.createCharacters(subText);
@@ -1615,7 +1635,8 @@ public class XMLProcessor implements XMLProcessorInterface
 	@Override
 	public final String writeToXML(final Aspect a) throws XMLStreamException
 	{
-
+		this.logmsg = "";
+		
 		// Create a XMLOutputFactory
 		XMLOutputFactory outputFactory = XMLOutputFactory.newInstance();
 		// Create XMLEventWriter
@@ -1731,13 +1752,13 @@ public class XMLProcessor implements XMLProcessorInterface
 
 
 		int start = 0;
-		System.out.println(a.getNotification());
+		buflog(a.getNotification());
 		
-		// System.out.println("notifi " + a.getNotification());
+		// buflog("notifi " + a.getNotification());
 		// FIXME!!!!!!!!!!!!!!!!
 		if (a.getNotification() != null && a.getRangeList() != null)
 		{
-			// System.out.println("RangeListe hat TaggingListen, Zahl: " +
+			// buflog("RangeListe hat TaggingListen, Zahl: " +
 			// a.getRangeList().size());
 			for (int i = 0; i < a.getRangeList().size(); i++)
 			{
@@ -1796,8 +1817,9 @@ public class XMLProcessor implements XMLProcessorInterface
 			e.printStackTrace();
 		}
 
-		_log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "XMLProcessor output: " + xml);
-		iLogger.log(_log);
+		if (logmsg.length()>0)
+			log(IStatus.WARNING, logmsg, null);
+		log(IStatus.INFO, "XMLProcessor output: " + xml, null);
 		return xml;
 
 	}
@@ -1835,6 +1857,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	@Override
 	public final String writeToXML(final Person p) throws XMLStreamException
 	{
+		String logmsg = "";
 		// Create a XMLOutputFactory
 		XMLOutputFactory outputFactory = XMLOutputFactory.newInstance();
 		// Create XMLEventWriter
@@ -1866,6 +1889,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 
 		// Write the different nodes
+		// TODO record is required. handle!
 		if (p.getRecord() != null && p.getRecord().getRevisions() != null)
 		{
 			startElement = eventFactory.createStartElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "record");
@@ -1881,22 +1905,24 @@ public class XMLProcessor implements XMLProcessorInterface
 			eventWriter.add(eventFactory.createEndElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "record"));
 
 		}
-		if (p.getIdentifiers() != null)
-		{
-			startElement = eventFactory
-					.createStartElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "identifiers");
-			eventWriter.add(startElement);
+		// identifiers must not be empty
+		if (p.getIdentifiers() != null) {
+			Vector<XMLEvent> idnsXmlEvs = new Vector<XMLEvent>();
 
-			if (p.getIdentifiers() != null && p.getIdentifiers().getIdentifiers() != null)
-			{
-				for (int i = 0; i < p.getIdentifiers().getIdentifiers().size(); i++)
-				{
-
-					createNode(eventWriter, "identifier", p.getIdentifiers().getIdentifiers().get(i));
+			if (p.getIdentifiers().getIdentifiers() != null)
+				for (Identifier i : p.getIdentifiers().getIdentifiers()){
+					Vector<XMLEvent> idnXmlEvs = createNode(eventWriter, "identifier", i);
+					if (idnXmlEvs != null)
+						idnsXmlEvs.addAll(idnXmlEvs);
 				}
+			
+			if (!idnsXmlEvs.isEmpty()) {
+				startElement = eventFactory.createStartElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "identifiers");
+				idnsXmlEvs.add(0, startElement);
+				idnsXmlEvs.add(eventFactory.createEndElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "identifiers"));
+				for (XMLEvent e : idnsXmlEvs)
+					eventWriter.add(e);
 			}
-			eventWriter
-					.add(eventFactory.createEndElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "identifiers"));
 
 		}
 
@@ -1934,8 +1960,7 @@ public class XMLProcessor implements XMLProcessorInterface
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		_log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "XMLProcessor output: " + xml);
-		iLogger.log(_log);
+		log(IStatus.INFO, "XMLProcessor output: " + xml, null);
 		return xml;
 
 	}
@@ -1949,6 +1974,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	@Override
 	public final String writeToXML(final ReferenceMods r) throws XMLStreamException
 	{
+		this.logmsg = "";
 		// Create a XMLOutputFactory
 		XMLOutputFactory outputFactory = XMLOutputFactory.newInstance();
 		// Create XMLEventWriter
@@ -1979,8 +2005,10 @@ public class XMLProcessor implements XMLProcessorInterface
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		_log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "XMLProcessor output: " + xml);
-		iLogger.log(_log);
+
+		if (logmsg.length()>0)
+			log(IStatus.WARNING, logmsg, null);
+		log(IStatus.INFO, "XMLProcessor output: " + xml, null);
 		return xml;
 
 	}
@@ -2054,9 +2082,8 @@ public class XMLProcessor implements XMLProcessorInterface
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		_log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "XMLProcessor output: " + xml);
-		iLogger.log(_log);
 
+		log(IStatus.INFO, "XMLProcessor output: " + xml, null);
 		return xml;
 
 	}
