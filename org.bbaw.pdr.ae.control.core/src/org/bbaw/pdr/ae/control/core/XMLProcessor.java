@@ -66,8 +66,10 @@ import org.bbaw.pdr.ae.model.RelatedItem;
 import org.bbaw.pdr.ae.model.Relation;
 import org.bbaw.pdr.ae.model.RelationStm;
 import org.bbaw.pdr.ae.model.SemanticStm;
+import org.bbaw.pdr.ae.model.SpatialDim;
 import org.bbaw.pdr.ae.model.SpatialStm;
 import org.bbaw.pdr.ae.model.TaggingRange;
+import org.bbaw.pdr.ae.model.TimeDim;
 import org.bbaw.pdr.ae.model.TimeStm;
 import org.bbaw.pdr.ae.model.ValidationStm;
 import org.eclipse.core.runtime.ILog;
@@ -1198,11 +1200,15 @@ public class XMLProcessor implements XMLProcessorInterface
 		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
 
 		eventWriter.add(sElement);
-		if (spaStm.getType() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("type", spaStm.getType()));
-		}
-
+		// if spatialStm has sub nodes,
+		// its type probably shouldn't be 'undefined'. So change this
+		if (spaStm.getType() != null) {
+			if (spaStm.getType().equals("undefined"))
+				if (spaStm.getPlaces() != null && !spaStm.getPlaces().isEmpty())
+					spaStm.setType("defined");
+		} else spaStm.setType("defined");
+		eventWriter.add(eventFactory.createAttribute("type", spaStm.getType()));
+		
 		// Create Content
 		if (spaStm.getPlaces() != null)
 		{
@@ -1288,10 +1294,13 @@ public class XMLProcessor implements XMLProcessorInterface
 		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
 
 		eventWriter.add(sElement);
-		if (tStm.getType() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("type", tStm.getType()));
-		}
+		// if node contains sub ndoes, it shouldnt be 'undefined'
+		if (tStm.getType() != null) {
+			if (tStm.getType().equals("undefined"))
+				if (tStm.getTimes() != null && !tStm.getTimes().isEmpty())
+					tStm.setType("defined");
+		} else tStm.setType("defined");
+		eventWriter.add(eventFactory.createAttribute("type", tStm.getType()));
 
 		// Create Content
 		if (tStm.getTimes() != null)
@@ -1682,36 +1691,58 @@ public class XMLProcessor implements XMLProcessorInterface
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "record"));
 
 
+		// <timeDim> 
 		startElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "timeDim");
 		eventWriter.add(startElement);
-
-		if (a.getTimeDim() != null && a.getTimeDim().getTimeStms() != null)
-		{
-			for (int i = 0; i < a.getTimeDim().getTimeStms().size(); i++)
-			{
-
-				createNode(eventWriter, "timeStm", a.getTimeDim().getTimeStms().get(i));
-			}
+		// 	<timeStm>
+		// aspect editor makes sure that each aspect has at least one timeStm element with legal type attribute,
+		// thus fulfilling minimal requirement made in aodl schema. However, as soon as one ore more proper
+		// timeStm elements, with time subnode and everything, are available, we don't need those fake dummy
+		// timeStms anymore. Also, we don't need more than one dummy element.
+		// therefore, we count the number of proper timeStms and then decide if we will serialize the dummy nodes
+		TimeDim timeDim = a.getTimeDim();
+		Vector<TimeStm> timeStms = new Vector<>();
+		if (timeDim != null && timeDim.getTimeStms() != null) 
+			for (TimeStm timeStm : timeDim.getTimeStms()) 
+				// assumption: only non-empty list of <time> sub elements constitutes valid non-empty timeStm element
+				if (timeStm.getTimes() != null && !timeStm.getTimes().isEmpty())
+					timeStms.add(timeStm);
+		if (timeStms.isEmpty()){ // handle missing timeDim (unlikely) and fallback if no proper timeStm were found 
+			TimeStm timeStm = new TimeStm();
+			timeStm.setType("undefined");
+			timeStms.add(timeStm);
 		}
+		// write timeStm nodes
+		for (TimeStm timeStm : timeStms)
+			createNode(eventWriter, "timeStm", timeStm);
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "timeDim"));
+		// </timeDim>
 
-
+		// <spatialDim>
 		startElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "spatialDim");
 		eventWriter.add(startElement);
-
-
-		if (a.getSpatialDim() != null && a.getSpatialDim().getSpatialStms() != null)
-		{
-			for (int i = 0; i < a.getSpatialDim().getSpatialStms().size(); i++)
-
-			{
-
-				createNode(eventWriter, "spatialStm", a.getSpatialDim().getSpatialStms().get(i));
-			}
+		//	<spatialStm>
+		// same here: satisfy aodl schema by writing at least one spatialStm elements, (empty if none is available)
+		// but not more than one dummy node
+		SpatialDim spatialDim = a.getSpatialDim();
+		Vector<SpatialStm> spatialStms = new Vector<>();
+		if (spatialDim != null && spatialDim.getSpatialStms() != null)
+			for (SpatialStm spatialStm : spatialDim.getSpatialStms())
+				// TODO: does anything apart from this constitute a proper spatialStm?
+				if (spatialStm.getPlaces() != null && !spatialStm.getPlaces().isEmpty())
+					spatialStms.add(spatialStm);
+		if (spatialStms.isEmpty()) {
+			SpatialStm spatialStm = new SpatialStm();
+			spatialStm.setType("undefined");
+			spatialStms.add(spatialStm);
 		}
+		for (SpatialStm spatialStm : spatialStms)
+			createNode(eventWriter, "spatialStm", spatialStm);
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "spatialDim"));
+		// </spatialDim>
 
 
+		// <relationDim>
 		startElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "relationDim");
 		eventWriter.add(startElement);
 

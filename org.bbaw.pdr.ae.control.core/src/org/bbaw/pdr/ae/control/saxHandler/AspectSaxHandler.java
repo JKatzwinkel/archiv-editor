@@ -460,7 +460,10 @@ public class AspectSaxHandler extends DefaultHandler
 		else if (name.equals("timeStm") || name.equals("aodl:timeStm") || qn.equals("timeStm")
 				|| qn.equals("aodl:timeStm"))
 		{
-			_timeDim.getTimeStms().add(_timeStm);
+			// we only import timeStm elements if we don't have one so far or if
+			// it seems to be of proper form, having time sub elements and stuff
+			if (!_timeStm.getTimes().isEmpty() || _timeDim.getTimeStms().isEmpty())
+				_timeDim.getTimeStms().add(_timeStm);
 		}
 		else if (name.equals("time") || name.equals("aodl:time") || qn.equals("time") || qn.equals("aodl:time"))
 		{
@@ -475,7 +478,10 @@ public class AspectSaxHandler extends DefaultHandler
 		else if (name.equals("spatialStm") || name.equals("aodl:spatialStm") || qn.equals("spatialStm")
 				|| qn.equals("aodl:spatialStm"))
 		{
-			_spatialDim.getSpatialStms().add(_spatialStm);
+			// only import spatialStm elements if we need to do so in order to satisfy aodl requirements,
+			// but try to avoid multiple empty spatialStms
+			if (!_spatialStm.getPlaces().isEmpty() || _spatialDim.getSpatialStms().isEmpty())
+				_spatialDim.getSpatialStms().add(_spatialStm);
 		}
 		else if (name.equals("place") || name.equals("aodl:place") || qn.equals("place") || qn.equals("aodl:place"))
 		{
