@@ -149,6 +149,7 @@ import org.eclipse.ui.handlers.IHandlerService;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.progress.UIJob;
 import org.eclipse.ui.services.ISourceProviderService;
+import org.omg.CORBA._IDLTypeStub;
 
 /**
  * Class creates tree view on left side of GUI view.
@@ -481,7 +482,16 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 									helpObjs.add(tns[i].getPdrObject());
 								}
 							}
-							setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
+							try {
+								String stats = "New objects [r/p/a]: "+
+									_mainSearcher.getNewReferences().size()+"/"+
+									_mainSearcher.getNewPersons().size()+"/"+
+									_mainSearcher.getNewAspects().size()+
+									" - Modified objects [r/p/a]: ";
+								setStatusLine(stats);
+								} catch (Exception e) {
+									setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
+								}
 							_selection = helpObjs.toArray(new PdrObject[helpObjs.size()]);
 							_facade.setCurrentTreeObjects(_selection);
 							showCurrentPdrObject();
@@ -817,7 +827,16 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 					}
 					selectionChanged(Treeview.this, sel);
 					_facade.setCurrentTreeObjects(_selection);
-					setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
+					try {
+					String stats = "New objects [r/p/a]: "+
+						_mainSearcher.getNewReferences().size()+"/"+
+						_mainSearcher.getNewPersons().size()+"/"+
+						_mainSearcher.getNewAspects().size()+
+						" - Modified objects [r/p/a]: ";
+					setStatusLine(stats);
+					} catch (Exception e) {
+						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
+					}
 
 				}
 
@@ -2192,8 +2211,17 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 //							}
 //						}
 					// }
-					setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
-					_selection = helpObjs.toArray(new PdrObject[helpObjs.size()]);
+					try {
+					String stats = "New objects [r/p/a]: "+
+						_mainSearcher.getNewReferences().size()+"/"+
+						_mainSearcher.getNewPersons().size()+"/"+
+						_mainSearcher.getNewAspects().size()+
+						" - Modified objects [r/p/a]: ";
+					setStatusLine(stats);
+					} catch (Exception e) {
+						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
+					}
+					//_selection = helpObjs.toArray(new PdrObject[helpObjs.size()]);
 				}
 			}
 			if (_selection != null)

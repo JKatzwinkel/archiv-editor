@@ -1396,6 +1396,27 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws Exception
 	 */
 	private Vector<String> ingestNewReferences1by1(final IProgressMonitor monitor) throws Exception {
+		synchronized (_dbCon) {
+		// TODO load xml of new objects, check validity of mods xml
+		Vector<String> newRefs = _mainSearcher.getNewReferences();
+		Vector<String> newRefIds = new Vector<>();
+		if (newRefs.isEmpty()) return null;
+		
+		
+		
+		// TODO bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
+		// TODO extract ids of new references from mainsearcher
+		// TODO dispose of xml object queue. xml will be freshly loaded from db for each id in ingestion queue
+		// otherwise xml will probably grow inconsistent with DB state as id rewrites won't affect xml queue
+		// TODO ingest single object into repo
+		// TODO if ingest fails regardless of thoughtful precautions, remove object and all 
+		// objects that link this object from ingestion queue
+		// TODO on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
+		// rewrite local DB object index with new id, update all objects linking the old id
+		// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
+		// (IDService.insertIdModifiedObject)
+		// TODO maybe start a second attempt to ingest the failures
+		}
 		return null;
 	}
 	
@@ -1482,7 +1503,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// in local DB, move all Ids identified as having local changes from
 			// the DB's 'modified' collection to persistent collections.
 			if (modifiedReferenceIds != null && !modifiedReferenceIds.isEmpty()) 
-				_idService.insertIdModifiedObject(modifiedReferenceIds, "pdrRo");
+				_idService.insertIdModifiedObject(modifiedReferenceIds, "pdrRo"); 
+			// FIXME: ^ this doesn't seem to work out:
+			// new objects are being send as modified objects even when they just have been ingested [3132, 4098, 3721] 
 			log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+references.size()+" new objects, server returned "+modifiedReferenceIds.size()+" global IDs)");
 		}
 	}
