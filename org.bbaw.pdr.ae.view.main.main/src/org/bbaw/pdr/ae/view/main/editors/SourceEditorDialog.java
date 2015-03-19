@@ -4099,7 +4099,8 @@ public class SourceEditorDialog extends TitleAreaDialog implements Observer
 			_currentReference.setDirty(true);
 		}
 		else
-		{
+		{	// XXX das sollte man so wohl nicht machen, wir brauchen doch mindestens zwei revisions wenn wir das
+			// als modified hochladen wollen
 			_currentReference.getRecord().getRevisions().lastElement().setTimeStamp(_facade.getCurrentDate());
 			_currentReference.setDirty(true);
 		}

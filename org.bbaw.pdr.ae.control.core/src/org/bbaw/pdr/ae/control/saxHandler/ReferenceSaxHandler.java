@@ -944,6 +944,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 		
 	}
 
+	@SuppressWarnings("unused")
 	private String indent() {
 		String res = "";
 		for (int i=0; i<indent; i++)
@@ -1486,7 +1487,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 				|| qName.equals("mods:recordInfo"))
 		{
 			_record = new Record();
-			_revision = new Revision();
+			_revision = new Revision(); // XXX revision ist leer
 			_acc = false;
 		}
 		else if (localName.equals("recordCreationDate") || qName.equals("recordCreationDate")

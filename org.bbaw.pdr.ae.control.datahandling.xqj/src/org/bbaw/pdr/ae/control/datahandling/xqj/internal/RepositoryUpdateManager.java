@@ -39,6 +39,7 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -46,6 +47,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -215,12 +218,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// System.out.println("checkModfiedIds");
 		log(1, "Look up persistent global ID for local object "+id+" based on ID mapping provided by remote repo, amongst "+(objects.size()-begin)+" objects");
 		//log(1, "Number of global IDs collectd so far: "+modifiedIds.size());
-		for (int i = 0; i <= begin && i < objects.size(); i++) {
+		for (int i = 0; i <= begin && i < objects.size(); i++) { // XXX wie bitte?
 			String s = objects.get(i);
 			if (s.contains(id.toString())) {
 				Identifier oldId = new Identifier(extractPdrId(s));
 				Identifier newId = idMap.get(oldId); // look up persistent global ID mapping for old ID/local ID 
-				if (newId != null && !modifiedIds.contains(newId.toString())) { // XXX moment mal.. nicht eher !contains ?
+				if (newId != null && !modifiedIds.contains(newId.toString())) {
 					modifiedIds.add(newId.toString());
 					log(1, "inserting modified obj oldid " + oldId.toString() + " new " + newId.toString());
 				}
@@ -245,6 +248,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		String logmsg; 
 		try	{
 			//System.out.println("checking version col " + col + " name " + name);
+			// XXX klappt natuerlich nicht bei mods objekten, bei denen die revision im recordInfo? stehen soll
 			local = _mainSearcher.searchObjectString(col, name);
 			logmsg = "Compare object versions:\nlocal:  " + local+"\nremote: "+repo;
 		} catch (XQException e)	{
@@ -944,6 +948,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 			while (subReferences != null && !subReferences.isEmpty()) {
 				// FIXME: SOAP fault
 				log(1, "Push "+subReferences.size()+" reference objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
+				for (String r : subReferences) {
+					System.out.println(r);
+					Matcher m = this.relatedItemPattern.matcher(r);
+					while (m.find())
+						System.out.println("RelatedItem: "+m.group(1));
+				}
 				subConflictingRefs = Repository.modifyObjects(_repositoryId, _projectId, subReferences, false);
 				if (subConflictingRefs != null && !subConflictingRefs.isEmpty()) {
 					log(1, ""+subConflictingRefs.size()+" new conflicts");
@@ -1387,6 +1397,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		log(0, "Done uploading new users");
 	}
 
+	/** used to find relatedItem links in mods objects **/
+	static private Pattern relatedItemPattern = Pattern.compile("<.*?:?relatedItem.*?ID=\"(pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.1\\d{8})\".*?>");
+	
 	/**
 	 * Ingests new reference objects one after another, after establishing a sequential order
 	 * that ensures no objects with dead links (unknown ids) are sent to the server.
@@ -1397,27 +1410,91 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private Vector<String> ingestNewReferences1by1(final IProgressMonitor monitor) throws Exception {
 		synchronized (_dbCon) {
-		// TODO load xml of new objects, check validity of mods xml
-		Vector<String> newRefs = _mainSearcher.getNewReferences();
-		Vector<String> newRefIds = new Vector<>();
+		// load xml of new objects, check validity of mods xml
+		// get all mods objects from local DB with a local ID (starting with '1')
+		// and validate them against rodl mods schema
+		Set<String> failures = new TreeSet<>();
+		Vector<String> newRefs = new Vector<>(); 
+		for (String ref : _mainSearcher.getNewReferences())
+			if (!isValidXMLReference(ref)) {
+				String xml2 = makeValidXMLReference(ref);
+				if (xml2 != null) {
+					newRefs.add(xml2);
+				} else
+					log(2, "Invalid Reference: "+ref);
+			} else
+				newRefs.add(ref);
 		if (newRefs.isEmpty()) return null;
+		// extract ids from mods objects xml, put them in an order considering relatedItem-link structure
+		// i.e. bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
+		Vector<String> newRefIds = new Vector<>();
+		/** this is a dictionary of incoming links between new reference mods objects. **/ 
+		HashMap<String, Vector<String>> links = new HashMap<>();
+		for (String s : newRefs) {
+			//System.out.println(s);
+			// remove mods namespace prefix from xml
+			s = removeRefPrefix(s);
+			String id = extractPdrId(s);
+			// find links to other new references which would be required to occur first in id list
+			Matcher m = relatedItemPattern.matcher(s);
+			while (m.find()) {
+				String relid = m.group(1);
+				//System.out.println("Mods objekt "+id+" references "+relid);
+				if (!newRefIds.contains(relid))
+					newRefIds.add(relid);
+				// register link from id to relid
+				if (!links.containsKey(relid)) {
+					links.put(relid, new Vector<String>(Arrays.asList(id)));
+				} else 
+					links.get(relid).add(id);
+			}
+			if (!newRefIds.contains(id))
+				newRefIds.add(id);
+		}
+		// now that ids of new references are in order, proceed to ingesting them one by one
+		// for this we retrieve the object identified by the elements of the id list from local DB
+		monitor.beginTask("Injesting new References into Repository. Number of Objects: " + newRefIds.size(),
+				newRefIds.size());
+		/** list of persistent (global) IDs returned by server on ingest on local objects **/
+		Vector<String> persistentIds = new Vector<>();
+		int counter = 0;
+		for (String i : newRefIds) if (!failures.contains(i)){
+			String ref = _mainSearcher.getObjectXML(i, "reference");
+			//System.out.println(id);
+			log(1, "Push NEW reference object to project ["+_projectId+"] at repo ["+_repositoryId+"]");
+			try {
+				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, 
+						new Vector<String>(Arrays.asList(ref)));
+				// update local DB using the persistent ID the server returned
+				for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
+					persistentIds.add(idMapping.getValue().toString());
+					// rewrite links to this object in all DB objects of type aodl, podl and mods
+					resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 3);
+					counter ++;
+				}
+			} catch (Exception e) {
+				// if ingest fails regardless of thoughtful precautions, remove object and all 
+				// objects that link this object from ingestion queue
+				log(2, "Could not ingest/update new reference object "+i, e);
+				failures.add(ref);
+				// because of failure, we need to avoid ingestion of any mods object linking
+				// the failed object
+				failures.addAll(links.get(i));
+			}
+		}
 		
 		
-		
-		// TODO bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
-		// TODO extract ids of new references from mainsearcher
-		// TODO dispose of xml object queue. xml will be freshly loaded from db for each id in ingestion queue
-		// otherwise xml will probably grow inconsistent with DB state as id rewrites won't affect xml queue
-		// TODO ingest single object into repo
-		// TODO if ingest fails regardless of thoughtful precautions, remove object and all 
-		// objects that link this object from ingestion queue
-		// TODO on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
+		// TODO maybe start a second attempt to ingest the failures
+		// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
 		// rewrite local DB object index with new id, update all objects linking the old id
 		// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
 		// (IDService.insertIdModifiedObject)
-		// TODO maybe start a second attempt to ingest the failures
+		if (!persistentIds.isEmpty()) 
+			_idService.insertIdModifiedObject(persistentIds, "pdrRo"); // XXX stay alert: objects might still pop up as 'modified' later
+		// TODO oder vielleicht exception
+		log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+newRefs.size()+" new objects, server returned "+persistentIds.size()+" global IDs)");
+		return new Vector<String>(failures);
 		}
-		return null;
 	}
 	
 	/**
@@ -2108,7 +2185,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// NEW REFERENCES
 			/////////////////
 			//log(1, "Begin to ingest new reference objects", null);
-			injestNewReferences(monitor);
+			//injestNewReferences(monitor);
+			Vector<String> fails = ingestNewReferences1by1(monitor);
+			if (fails == null || fails.isEmpty()) {
+				monitor.done();
+				return updateStatus;
+			}
 			//log(0, "New references successfully ingested into repo");
 			statuses.put("ingest new mods", true);
 		} catch (PDRAlliesClientException e) {
@@ -2141,7 +2223,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log(2, "Exception while ingesting new persons: ", e);
 			statuses.put("ingest new podl", false);
 		}
-		
 		
 		
 		try	{
@@ -2743,7 +2824,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 				if (name.startsWith("pdrRo")) {
 					col = "reference";
-					rIds.add(name);
+					rIds.add(name); // TODO mods hat kein record/revision element, dafuer wird recordInfo genommen, aber nicht ausgewertet
+					System.out.println("Mods object server sais was modified:\n"+s);
 				}
 				if (name.startsWith("pdrUo")) {
 					col = "users";
@@ -2752,6 +2834,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 				// System.out.println("modified object " + s);
 				name += ".xml";
 
+				// XXX hier wird der fall nicht abgedeckt, in dem zwar die lokale version neuer ist als die auf remote,
+				// die remote version jedoch ebenfalls neuer ist als das letzte lokale update. Ist das schlimm oder
+				// wird das nachher beim conflict handling bemerkt?
+				// XXX in mods gibt es doch ueberhaupt keine revision, wie soll man denn da feststellen welcehs objekt
+				// neuer ist??? antwort: es wird stattdessen wohl recordInfo verwendet. Davon musz modl mindestens eines haben
+				// allerdings wird das im SAXHandler nicht wirklich eingelesen
 				if (!s.startsWith("no path in db registry") && checkVersions(s, col, name))
 					synchronized (_dbCon) { 
 						System.out.println("Save object modified on server to local DB: "+col+" "+name+" "+s);
