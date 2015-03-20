@@ -784,6 +784,20 @@ public class MainSearcher extends AMainSearcher
 		return -1;
 	}
 
+	
+	private final static HashMap<Character, String> collectionNames = new HashMap<>();
+	static {
+		for (String n : new String[]{"person", "aspect", "reference", "users"})
+			collectionNames.put(n.charAt(0), n);
+	}
+		
+	
+	public final String getObjectXML(final String idString) throws Exception {
+		String col = collectionNames.get(idString.toLowerCase().charAt(3));
+		System.out.println(idString.toLowerCase().charAt(3)+" "+col);
+		return getObjectXML(idString, col);
+	}
+	
 	@Override
 	public final String getObjectXML(final String idString, final String col) throws Exception
 	{

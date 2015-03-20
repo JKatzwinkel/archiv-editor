@@ -1254,6 +1254,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			iLogger.log(log);
 			log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
 			iLogger.log(log);*/
+			System.out.println(xml);
+			e.printStackTrace();
 			isValid = false;
 		}
 		return isValid;
@@ -1336,7 +1338,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		synchronized (_dbCon) {
 			Vector<String> users = getNewUsers();
 			if (users.size()<1) return;
-			log(1, "Begin ingesting new users from local DB into repo");
+			log(1, "Begin ingesting new users from local DB into repo:"+users.size());
 			int counter = 0;
 			int begin = 0;
 			int end = (users.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : users.size(); 
@@ -1416,7 +1418,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Set<String> failures = new TreeSet<>();
 		Vector<String> newRefs = new Vector<>(); 
 		for (String ref : _mainSearcher.getNewReferences())
-			if (!isValidXMLReference(ref)) {
+			if (!isValidXMLReference(ref)) { // XXX isvalidxmlreference kann man sich sparen
 				String xml2 = makeValidXMLReference(ref);
 				if (xml2 != null) {
 					newRefs.add(xml2);
@@ -1427,30 +1429,74 @@ public class RepositoryUpdateManager implements IUpdateManager
 		if (newRefs.isEmpty()) return null;
 		// extract ids from mods objects xml, put them in an order considering relatedItem-link structure
 		// i.e. bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
+		/** ids of new reference objects in whatever order local DB returned them*/
 		Vector<String> newRefIds = new Vector<>();
-		/** this is a dictionary of incoming links between new reference mods objects. **/ 
-		HashMap<String, Vector<String>> links = new HashMap<>();
+		/** this is a dictionary of transitive incoming links between new reference mods objects. **/ 
+		HashMap<String, Set<String>> dependingOn = new HashMap<>();
 		for (String s : newRefs) {
 			//System.out.println(s);
 			// remove mods namespace prefix from xml
 			s = removeRefPrefix(s);
 			String id = extractPdrId(s);
+			newRefIds.add(id);
+			if (!dependingOn.containsKey(id))
+				dependingOn.put(id, new TreeSet<String>());
 			// find links to other new references which would be required to occur first in id list
 			Matcher m = relatedItemPattern.matcher(s);
 			while (m.find()) {
 				String relid = m.group(1);
-				//System.out.println("Mods objekt "+id+" references "+relid);
-				if (!newRefIds.contains(relid))
-					newRefIds.add(relid);
+				System.out.println("Mods objekt "+id+" references "+relid);
 				// register link from id to relid
-				if (!links.containsKey(relid)) {
-					links.put(relid, new Vector<String>(Arrays.asList(id)));
-				} else 
-					links.get(relid).add(id);
+				if (!dependingOn.containsKey(relid))
+					dependingOn.put(relid, new TreeSet<String>());
+				dependingOn.get(relid).add(id);
 			}
 			if (!newRefIds.contains(id))
 				newRefIds.add(id);
 		}
+		/** new reference Ids put in order*/
+		Vector<String> refIdqueue = new Vector<>();
+		// resolve dependencies
+		for (String i : newRefIds) {
+			Set<String> dependents = new TreeSet<String>(dependingOn.get(i));
+			boolean expanding = true;
+			while (expanding) {
+				for (String in : dependingOn.get(i)) // add all objs linking known dependencies as dependencies 
+					dependents.addAll(dependingOn.get(in));
+				expanding = (dependents.size()>dependingOn.get(i).size());
+				dependingOn.put(i, new TreeSet<String>(dependents));		
+			}
+			// check for loops
+			if (dependents.contains(i)) {
+				System.out.println("Detected object interreference loop at object "+i);
+				return newRefIds;
+			}
+		}
+		// bring object ids in correct order
+		for (String i : newRefIds) {
+			System.out.println(i + " <<< "+dependingOn.get(i));
+			// append id of current object to queue 
+			refIdqueue.add(i);
+			// now check dependents and move current obj queue position if necessary
+			for (String in : dependingOn.get(i)) {
+				if (refIdqueue.contains(in)) {
+					// queue position dependent obj
+					int inqup = refIdqueue.indexOf(in);
+					// queue position current obj
+					int qup = refIdqueue.indexOf(i);
+					// if linking obj is farther up front than dependent obj, place the latter ahead
+					if (inqup < qup) {
+						refIdqueue.remove(qup);
+						refIdqueue.add(inqup, i);
+						System.out.println("Put "+i+" ahead of "+in);
+					}
+				}
+			}
+		}
+		for (String i : refIdqueue)
+			System.out.println(i);
+		if (newRefIds.size()>0)
+			return null;
 		// now that ids of new references are in order, proceed to ingesting them one by one
 		// for this we retrieve the object identified by the elements of the id list from local DB
 		monitor.beginTask("Injesting new References into Repository. Number of Objects: " + newRefIds.size(),
@@ -1459,7 +1505,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Vector<String> persistentIds = new Vector<>();
 		int counter = 0;
 		for (String i : newRefIds) if (!failures.contains(i)){
-			String ref = _mainSearcher.getObjectXML(i, "reference");
+			String ref = _mainSearcher.getObjectXML(i);
 			//System.out.println(id);
 			log(1, "Push NEW reference object to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 			try {
@@ -1479,7 +1525,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				failures.add(ref);
 				// because of failure, we need to avoid ingestion of any mods object linking
 				// the failed object
-				failures.addAll(links.get(i));
+				failures.addAll(dependingOn.get(i));
 			}
 		}
 		
@@ -2191,6 +2237,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				monitor.done();
 				return updateStatus;
 			}
+			System.out.println(fails);
 			//log(0, "New references successfully ingested into repo");
 			statuses.put("ingest new mods", true);
 		} catch (PDRAlliesClientException e) {
@@ -2198,13 +2245,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 			success = false;
 			log(2, "Exception in ALLIES while ingesting new references", e);
 			statuses.put("ingest new mods", false);
+			return updateStatus;
 		} catch (Exception e) {
 			success = false;
 			log(IStatus.WARNING, "Exception while ingesting new references: ", e);
 			statuses.put("ingest new mods", false);
+			return updateStatus;
 		}
 		
 		
+		if (success)
 		try {
 			//////////
 			// PERSONS
@@ -2225,6 +2275,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		
 		
+		if (success)
 		try	{
 			//////////////
 			// NEW ASPECTS
@@ -3132,8 +3183,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Collections.sort(standardUsers);
 		Vector<String> repoUsers = new Vector<String>(10);
 		// XXX wieso immer projekt nr 2?
-		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
-		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
+		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
+		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		try	{
 			repoUsers = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, 1, 9);
 		} catch (PDRAlliesClientException e2) {
@@ -3198,6 +3249,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					
 					injestUsers.add(removeUserPrefix(user));
 					try	{
+						// XXX persistente IDs werden nicht verarbeitet???
 						Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
 					} catch (InvalidIdentifierException e) {
 						// TODO Auto-generated catch block
