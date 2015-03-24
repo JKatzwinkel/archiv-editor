@@ -114,7 +114,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param person 
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final Concurrence c, PdrMetaObject person)
+	private void createPersonConcurrenceNode(final XMLEventWriter eventWriter, final String name, final Concurrence c, PdrMetaObject person)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -131,7 +131,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		{
 			for (int j = 0; j < c.getReferences().size(); j++)
 			{
-				createNode(eventWriter, "validationStm", c.getReferences().get(j), "podl",
+				createValidationStmNode(eventWriter, "validationStm", c.getReferences().get(j), "podl",
 						"http://pdr.bbaw.de/namespaces/podl/", person);
 			}
 		}
@@ -1348,23 +1348,26 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param validationStm the validation statement
 	 * @param prefix the prefix
 	 * @param uri the uri
-	 * @param aspect 
+	 * @param pdrObject 
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final ValidationStm validationStm,
-			final String prefix, final String uri, PdrMetaObject aspect) throws XMLStreamException
+	private void createValidationStmNode(final XMLEventWriter eventWriter, final String name, final ValidationStm validationStm,
+			final String prefix, final String uri, PdrMetaObject pdrObject) throws XMLStreamException
 	{
 		// create validationStm element
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
-
+		
 		eventWriter.add(sElement);
+		String auth = null;
 		if (validationStm.getAuthority() == null) {
 			buflog("Aodl warning: validationStm without authority. falling back to revision authority");  
-			eventWriter.add(eventFactory.createAttribute("authority", aspect.getRecord().getRevisions().get(0).getAuthority().toString()));
-		} else
-			eventWriter.add(eventFactory.createAttribute("authority", validationStm.getAuthority().toString()));
+			// XXX: first or last revision?
+			auth = pdrObject.getRecord().getRevisions().get(0).getAuthority().toString();
+		} else 
+			auth = validationStm.getAuthority().toString();
+		eventWriter.add(eventFactory.createAttribute("authority", auth));
 
 
 		if (validationStm.getReference() != null) {
@@ -1380,8 +1383,11 @@ public class XMLProcessor implements XMLProcessorInterface
 				eventWriter.add(eventFactory.createAttribute("quality", ref.getQuality()));
 
 			// XXX authority attribute is not even a part in aodl schema reference definition...!
-			//if (ref.getAuthority() != null)
-				//eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
+			// XXX but it is in podl schema!!!
+			if (ref.getAuthority() != null) {
+				eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
+			} else
+				eventWriter.add(eventFactory.createAttribute("authority", auth));
 
 			// Create Content
 			if (ref.getSourceId() != null) {
@@ -1827,7 +1833,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		{
 			for (int i = 0; i < a.getValidation().getValidationStms().size(); i++)
 			{
-				createNode(eventWriter, "validationStm", a.getValidation().getValidationStms().get(i), "aodl",
+				createValidationStmNode(eventWriter, "validationStm", a.getValidation().getValidationStms().get(i), "aodl",
 						"http://pdr.bbaw.de/namespaces/aodl/", a);
 			}
 		}
@@ -1970,7 +1976,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 				{
 
-					createNode(eventWriter, "concurrence", p.getConcurrences().getConcurrences().get(i), p);
+					createPersonConcurrenceNode(eventWriter, "concurrence", p.getConcurrences().getConcurrences().get(i), p);
 				}
 			}
 			eventWriter.add(eventFactory

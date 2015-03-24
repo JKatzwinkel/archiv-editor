@@ -304,7 +304,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @param objectString object xml as string
 	 * @return pdrid
 	 */
-	private String extractPdrId(final String objectString)
+	static private String extractPdrId(final String objectString)
 	{
 
 		Matcher m = AEConstants.PDR_ID_PATTERN.matcher(objectString);
@@ -950,7 +950,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				log(1, "Push "+subReferences.size()+" reference objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				for (String r : subReferences) {
 					System.out.println(r);
-					Matcher m = this.relatedItemPattern.matcher(r);
+					Matcher m = this.pdrModsLinkPattern.matcher(r);
 					while (m.find())
 						System.out.println("RelatedItem: "+m.group(1));
 				}
@@ -1056,14 +1056,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 				iLogger.log(log);
 				return null;
 			}
-			if (isValidXMLAspect(xml2))	
+			if (isValidXMLAspect(xml2)) {	
 				try {
 					_facade.saveAspect(a); // XXX bringt das ueberhaupt was wenn aspect nicht new oder dirty ist? Und ist dies vielleicht der grund fuer die doppelten aspecte in baseX? 
-					return xml2;
 				} catch (Exception e) {
 					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to write aspect to DB: "+a.getDisplayNameWithID(), e);
 					iLogger.log(log);
 				}
+				return xml2;
+			}
 		} else
 			return xml;
 		return null;
@@ -1135,12 +1136,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 				try {
 					_facade.savePerson(p);
 					//if (isValidXMLPerson(xml2))	{
-						return xml2;
 					//}
 				} catch (Exception e) {
 					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to  write person to DB "+p.getDisplayNameWithID(), e);
 					iLogger.log(log);
 				}
+				return xml2;
 			}
 		} else
 			return xml;
@@ -1260,6 +1261,23 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		return isValid;
 	}
+	/**
+	 * For a given PDR mods object XML serialization, check validity
+	 * against corresponding XML schema (rodl_mods.xsd) and re-serialize
+	 * object to XML in case of invalidity. On re-serialization, result is
+	 * also saved to local DB in an attempt to overwrite possibly invalid
+	 * local DB object representation.
+	 * <p>Process is as follows:
+	 * <ol><li>check validity of XML string using {@link #isValidXMLReference(String)}</li>
+	 * <li>if invalid:
+	 * 	<ol><li>extract pdr id string</li>
+	 * 	<li>retrieve {@link ReferenceMods} object by id from {@link Facade#getReference(PdrId)}</li>
+	 * 	<li>serialize to XML using {@link XMLProcessor}</li>
+	 * 	<li>check validity of resulting XML, if valid, save to DB using {@link Facade#saveReference(ReferenceMods)}, return XML string
+	 * Note: on re-serialization, xml elements will contain namespace prefixes</p>
+	 * @param xml possibly invalid XML representation of PDR mods reference, containing PDR id attribute 
+	 * @return hopefully valid XML
+	 */
 	private String makeValidXMLReference(String xml) {
 		// check input
 		boolean isValid = isValidXMLReference(xml);
@@ -1274,16 +1292,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 				iLogger.log(log);
 				return null;
 			}
-			if (isValidXMLReference(xml2))	
+			if (isValidXMLReference(xml2))	{
 				try {
 					_facade.saveReference(r);
-					return xml2;
 				} catch (Exception e) {
 					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to save mods ref to DB "+r.getDisplayNameWithID(), e);
 					iLogger.log(log);
 				}
-		}
-		else
+				return xml2;
+			}
+		} else
 			return xml;
 		return null;
 	}
@@ -1303,6 +1321,46 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		return referenceXMLValidator;
 	}
+	
+	/**
+	 * Takes given PDR object XML representation, determines type (reference, person, aspect)
+	 * and ensures its validity by delegation to type-specific methods. Those methods
+	 * re-serialize the represented object and save resulting XML to local DB. Resulting XML
+	 * most likely contains namespace prefixes in all elements.
+	 * @param xml XMl representation of object as a String
+	 * @return potentially re-serialized, valid XML representation of object
+	 * @see #makeValidXMLReference(String)
+	 * @see #makeValidXMLPerson(String)
+	 * @see #makeValidXMLAspect(String)
+	 */
+	private String makeValidPDRObjectXML(String xml) {
+		PdrId id = new PdrId(extractPdrId(xml));
+		switch (id.getType()) {
+			 case "pdrRo": return removeRefPrefix(makeValidXMLReference(xml));
+			 case "pdrPo": return removePersonPrefix(makeValidXMLPerson(xml));
+			 case "pdrAo": return removeAspectPrefixes(makeValidXMLAspect(xml));
+		}
+		log(2, "Didn't delegate XML validation/validization. Possibly invalid.");
+		return xml;
+	}
+	
+	/**
+	 * Determines if XML is valid representation of {@link ReferenceMods}, {@link Person}
+	 * or {@link Aspect}. Returns false if given XML represents no object type is not amongst these three. 
+	 * @param xml
+	 * @return true if validation was successful
+	 */
+	private boolean isValidPDRObjectXML(String xml) {
+		PdrId id = new PdrId(extractPdrId(xml));
+		switch (id.getType()) {
+			 case "pdrRo": return isValidXMLReference(xml);
+			 case "pdrPo": return isValidXMLPerson(xml);
+			 case "pdrAo": return isValidXMLAspect(xml);
+		}
+		log(2, "Didn't delegate XML validation. Possibly invalid.");
+		return false;
+	}
+	
 
 	/**
 	 * Injest new config.
@@ -1399,8 +1457,194 @@ public class RepositoryUpdateManager implements IUpdateManager
 		log(0, "Done uploading new users");
 	}
 
-	/** used to find relatedItem links in mods objects **/
-	static private Pattern relatedItemPattern = Pattern.compile("<.*?:?relatedItem.*?ID=\"(pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.1\\d{8})\".*?>");
+	/** matches relatedItem links (to new objects) in mods objects **/
+	static private Pattern pdrModsLinkPattern = Pattern.compile("<.*?:?relatedItem.*?ID=\"(pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.1\\d{8})\".*?>");
+	/** matches inter (new) object references in aspect objects */
+	static private String pdrAspectLinkTags = "(<relation[^>]*?object=\"|ana=\"|<reference[^>]*>)";
+	static private Pattern pdrAspectLinkPattern = Pattern.compile(pdrAspectLinkTags+"(pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.1\\d{8})");
+	/** TODO matcher for person object XML */
+	static private String pdrPersonLinkTags = "(<concurrence[^>]*person=\"|<reference[^>]*>)";
+	static private Pattern pdrPersonLinkPattern = Pattern.compile(pdrPersonLinkTags+"(pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.1\\d{8})");
+
+	/**
+	 * Searches XML string for references to other new local objects. Matched relations are
+	 * <ul><li>in mods objects: relatedItem</li>
+	 * <li>in aspects: relation object=, ana=, reference</li>
+	 * <li>in person objects: TODO</li>
+	 * </ul> 
+	 * Make sure xml is without namespace prefixes!
+	 * @param xml XML repr of object <i>without NS prefixes</i>
+	 * @return
+	 */
+	static private Vector<String> findLinkedLocalObjects(String xml) {
+		Vector<String> links = new Vector<>();
+		PdrId id = new PdrId(extractPdrId(xml)); // extract pdr id from xml
+		if (id.getType().equals("pdrRo")) {	
+			// find links in Mods object
+			Matcher m = pdrModsLinkPattern.matcher(xml);
+			while (m.find()) {
+				String relid = m.group(1);
+				//System.out.println("Mods objekt "+id+" references "+relid);
+				links.add(relid);
+			}
+		} else if (id.getType().equals("pdrPo")) {
+			Matcher m = pdrPersonLinkPattern.matcher(xml);
+			while (m.find()) {
+				String relid = m.group(2);
+				//System.out.println("Person objekt "+id+" references "+relid);
+				links.add(relid);
+			}
+		} else if (id.getType().equals("pdrAo")) {
+			// find links in aspect object
+			Matcher m = pdrAspectLinkPattern.matcher(xml);
+			while (m.find()) {
+				String relid = m.group(2);
+				//System.out.println("Aspect objekt "+id+" references "+relid);
+				links.add(relid);
+			}
+		}
+		return links;
+	}
+	
+	
+	/**
+	 * Ingests new reference, person and aspect objects (in this order) into remote repo.
+	 * @param monitor
+	 * @return
+	 * @throws Exception
+	 */
+	private Vector<String> ingestNewPDRObjects(final IProgressMonitor monitor) throws Exception {
+		synchronized (_dbCon) {
+			// Ids of objects that couldn't be ingested */
+			Set<String> failures = new TreeSet<>();
+			// XML repr of new local PDR objects as obtained from MainSearcher */
+			Vector<String> newObjsXml =  new Vector<>();
+			// ids of new local PDR objects in whatever order local DB returned them*/
+			Vector<String> newObjsIds = new Vector<>();
+			// this is a dictionary of new local objects which object ids reference and are hence dependent on
+			HashMap<String, Vector<String>> dependencies = new HashMap<>();
+			// this is a dictionary of transitive incoming links between new reference mods objects. **/ 
+			HashMap<String, Set<String>> dependingOn = new HashMap<>();
+			// retrieve new local objects from MainSearcher
+			newObjsXml.addAll(_mainSearcher.getNewReferences());
+			newObjsXml.addAll(_mainSearcher.getNewPersons());
+			newObjsXml.addAll(_mainSearcher.getNewAspects());
+			// extract PdrId from object XML, validate XML, prepare dependency dict
+			for (String s : newObjsXml) {
+				String id = extractPdrId(s); // extract pdr id from xml
+				String xml = makeValidPDRObjectXML(s); // validate xml repr (and remove ns prefixes)
+				if (xml != null) {
+					newObjsIds.add(id);
+					dependingOn.put(id, new TreeSet<String>());
+				} else {
+					log(2, "XML seems to be invalid, exempt from ingestion:\n"+xml);
+					failures.add(id); // TODO: excempt dependent objects
+				}
+				// find and register dependencies of object
+				dependencies.put(id, findLinkedLocalObjects(xml));
+			}
+			// generate dict of depending objects from dependency map, 
+			for (String i : newObjsIds) 
+				for (String d : dependencies.get(i))
+					dependingOn.get(d).add(i);
+						
+			// sequence of new objs Ids put in dependency-sensitive order
+			Vector<String> objsIdqueue = new Vector<>();
+			// infer transitive dependencies, detect dependency loops
+			// resolve dependencies
+			for (String i : newObjsIds) {
+				Set<String> dependents = new TreeSet<String>(dependingOn.get(i));
+				boolean expanding = true;
+				while (expanding) {
+					for (String in : dependingOn.get(i)) // add all objs linking known dependencies as dependencies 
+						dependents.addAll(dependingOn.get(in));
+					expanding = (dependents.size()>dependingOn.get(i).size());
+					dependingOn.put(i, new TreeSet<String>(dependents));		
+				}
+				// check for loops
+				if (dependents.contains(i)) {
+					System.out.println("Detected object dependency loop at object "+i);
+					// return all new local objects, all these objects failed to be ingested
+					return newObjsIds;
+				}
+				// line up object id for ingestion
+				objsIdqueue.add(i);
+				// bring object ids in correct order
+				// check dependents and move current obj queue position if necessary
+				for (String in : dependingOn.get(i)) // go through all dependent objects
+					if (objsIdqueue.contains(in)) { // if objects depending on current object is already in ingest queue, compare positions
+						// queue position dependent obj
+						int inqup = objsIdqueue.indexOf(in);
+						// queue position current obj
+						int qup = objsIdqueue.indexOf(i);
+						// if linking obj is farther up front than dependent obj, place the latter ahead
+						if (inqup < qup) {
+							objsIdqueue.remove(qup);
+							objsIdqueue.add(inqup, i);
+							System.out.println("Put "+i+" ahead of "+in);
+						}
+					}
+			}
+			for (String i : objsIdqueue)
+				System.out.println(i);
+			//if (newObjsIds.size()>0)
+				//return null;
+			// ===== INGEST =====
+			// pdr object types ingest sequence
+			Vector<String> pdrTypes = new Vector<>(Arrays.asList("pdrRo", "pdrPo", "pdrAo"));
+			// now that ids of new local objects are in order, proceed to ingesting them in type-wise packets
+			// for this we retrieve the object identified by the elements of the id queue from local DB
+			monitor.beginTask("Ingesting new local objects into repository. Number of objects: " + newObjsIds.size(), newObjsIds.size());
+			int counter = 0;
+
+			// loop through pdr type ingest sequence
+			for (String pdrType : pdrTypes) {
+				log(0, "Ingest new local objects of type "+pdrType);
+				// prepare packet of new objects for current type
+				Vector<String> packet = new Vector<>();
+				for (String i : objsIdqueue)
+					if (!failures.contains(i)) // exclude objects that would fail due to unmet dependencies
+						if (pdrType.equals(i.substring(0, 5)))
+							packet.add(_mainSearcher.getObjectXML(i));
+				log(1, "Push "+packet.size()+" NEW "+pdrType+" objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");				
+				// list of persistent (global) IDs returned by server on ingest on local objects 
+				Vector<String> persistentIds = new Vector<>();
+				// attempt ingest
+				try {
+					Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, packet);
+					// update local DB using the persistent ID the server returned
+					for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
+						persistentIds.add(idMapping.getValue().toString());
+						// rewrite links to this object in all DB objects of dependent types
+						// XXX only in the end when all objects have been ingested
+						resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 
+								3-pdrTypes.indexOf(pdrType));
+						counter ++;
+					}
+					log(0, "Ingested "+counter+"/"+packet.size()+" "+pdrType+" new local objects.");
+					// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
+					// rewrite local DB object index with new id, update all objects linking the old id
+					// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
+					// (IDService.insertIdModifiedObject)
+					// XXX only in the end when all has been ingested
+					if (!persistentIds.isEmpty()) 
+						_idService.insertIdModifiedObject(persistentIds, pdrType); // XXX stay alert: objects might still pop up as 'modified' later
+					log(0, "server returned "+persistentIds.size()+" global IDs)");
+				} catch (Exception e) {
+					// if ingest fails regardless of thoughtful precautions, terminate ingest, return all queued objects
+					// as failure list
+					log(2, "Could not ingest/update new local objects ", e);
+					failures.addAll(packet);
+					return objsIdqueue;
+				}
+				monitor.worked(packet.size());
+			}
+			
+			
+			log(0, "Done pushing NEW local objects. Total number of ingested objects: "+counter+"\n(out of "+newObjsXml.size()+" new objects");
+			return new Vector<String>(failures);
+		}
+	}
 	
 	/**
 	 * Ingests new reference objects one after another, after establishing a sequential order
@@ -1412,134 +1656,134 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private Vector<String> ingestNewReferences1by1(final IProgressMonitor monitor) throws Exception {
 		synchronized (_dbCon) {
-		// load xml of new objects, check validity of mods xml
-		// get all mods objects from local DB with a local ID (starting with '1')
-		// and validate them against rodl mods schema
-		Set<String> failures = new TreeSet<>();
-		Vector<String> newRefs = new Vector<>(); 
-		for (String ref : _mainSearcher.getNewReferences())
-			if (!isValidXMLReference(ref)) { // XXX isvalidxmlreference kann man sich sparen
-				String xml2 = makeValidXMLReference(ref);
-				if (xml2 != null) {
-					newRefs.add(xml2);
+			// load xml of new objects, check validity of mods xml
+			// get all mods objects from local DB with a local ID (starting with '1')
+			// and validate them against rodl mods schema
+			Set<String> failures = new TreeSet<>();
+			Vector<String> newRefs = new Vector<>(); 
+			for (String ref : _mainSearcher.getNewReferences())
+				if (!isValidXMLReference(ref)) { // XXX isvalidxmlreference kann man sich sparen
+					String xml2 = makeValidXMLReference(ref); // XXX why? we don't use this xml do we?
+					if (xml2 != null) {
+						newRefs.add(xml2);
+					} else
+						log(2, "Invalid Reference: "+ref);
 				} else
-					log(2, "Invalid Reference: "+ref);
-			} else
-				newRefs.add(ref);
-		if (newRefs.isEmpty()) return null;
-		// extract ids from mods objects xml, put them in an order considering relatedItem-link structure
-		// i.e. bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
-		/** ids of new reference objects in whatever order local DB returned them*/
-		Vector<String> newRefIds = new Vector<>();
-		/** this is a dictionary of transitive incoming links between new reference mods objects. **/ 
-		HashMap<String, Set<String>> dependingOn = new HashMap<>();
-		for (String s : newRefs) {
-			//System.out.println(s);
-			// remove mods namespace prefix from xml
-			s = removeRefPrefix(s);
-			String id = extractPdrId(s);
-			newRefIds.add(id);
-			if (!dependingOn.containsKey(id))
-				dependingOn.put(id, new TreeSet<String>());
-			// find links to other new references which would be required to occur first in id list
-			Matcher m = relatedItemPattern.matcher(s);
-			while (m.find()) {
-				String relid = m.group(1);
-				System.out.println("Mods objekt "+id+" references "+relid);
-				// register link from id to relid
-				if (!dependingOn.containsKey(relid))
-					dependingOn.put(relid, new TreeSet<String>());
-				dependingOn.get(relid).add(id);
-			}
-			if (!newRefIds.contains(id))
+					newRefs.add(ref);
+			if (newRefs.isEmpty()) return null;
+			// extract ids from mods objects xml, put them in an order considering relatedItem-link structure
+			// i.e. bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
+			/** ids of new reference objects in whatever order local DB returned them*/
+			Vector<String> newRefIds = new Vector<>();
+			/** this is a dictionary of transitive incoming links between new reference mods objects. **/ 
+			HashMap<String, Set<String>> dependingOn = new HashMap<>();
+			for (String s : newRefs) {
+				//System.out.println(s);
+				// remove mods namespace prefix from xml
+				s = removeRefPrefix(s); // remove nx prefix for pattern matching
+				String id = extractPdrId(s);
 				newRefIds.add(id);
-		}
-		/** new reference Ids put in order*/
-		Vector<String> refIdqueue = new Vector<>();
-		// resolve dependencies
-		for (String i : newRefIds) {
-			Set<String> dependents = new TreeSet<String>(dependingOn.get(i));
-			boolean expanding = true;
-			while (expanding) {
-				for (String in : dependingOn.get(i)) // add all objs linking known dependencies as dependencies 
-					dependents.addAll(dependingOn.get(in));
-				expanding = (dependents.size()>dependingOn.get(i).size());
-				dependingOn.put(i, new TreeSet<String>(dependents));		
+				if (!dependingOn.containsKey(id))
+					dependingOn.put(id, new TreeSet<String>());
+				// find links to other new references which would be required to occur first in id list
+				Matcher m = pdrModsLinkPattern.matcher(s);
+				while (m.find()) {
+					String relid = m.group(1);
+					System.out.println("Mods objekt "+id+" references "+relid);
+					// register link from id to relid
+					if (!dependingOn.containsKey(relid))
+						dependingOn.put(relid, new TreeSet<String>());
+					dependingOn.get(relid).add(id);
+				}
+				if (!newRefIds.contains(id))
+					newRefIds.add(id);
 			}
-			// check for loops
-			if (dependents.contains(i)) {
-				System.out.println("Detected object interreference loop at object "+i);
-				return newRefIds;
+			/** new reference Ids put in order*/
+			Vector<String> refIdqueue = new Vector<>();
+			// resolve dependencies
+			for (String i : newRefIds) {
+				Set<String> dependents = new TreeSet<String>(dependingOn.get(i));
+				boolean expanding = true;
+				while (expanding) {
+					for (String in : dependingOn.get(i)) // add all objs linking known dependencies as dependencies 
+						dependents.addAll(dependingOn.get(in));
+					expanding = (dependents.size()>dependingOn.get(i).size());
+					dependingOn.put(i, new TreeSet<String>(dependents));		
+				}
+				// check for loops
+				if (dependents.contains(i)) {
+					System.out.println("Detected object interreference loop at object "+i);
+					return newRefIds;
+				}
 			}
-		}
-		// bring object ids in correct order
-		for (String i : newRefIds) {
-			System.out.println(i + " <<< "+dependingOn.get(i));
-			// append id of current object to queue 
-			refIdqueue.add(i);
-			// now check dependents and move current obj queue position if necessary
-			for (String in : dependingOn.get(i)) {
-				if (refIdqueue.contains(in)) {
-					// queue position dependent obj
-					int inqup = refIdqueue.indexOf(in);
-					// queue position current obj
-					int qup = refIdqueue.indexOf(i);
-					// if linking obj is farther up front than dependent obj, place the latter ahead
-					if (inqup < qup) {
-						refIdqueue.remove(qup);
-						refIdqueue.add(inqup, i);
-						System.out.println("Put "+i+" ahead of "+in);
+			// bring object ids in correct order
+			for (String i : newRefIds) {
+				System.out.println(i + " <<< "+dependingOn.get(i));
+				// append id of current object to queue 
+				refIdqueue.add(i);
+				// now check dependents and move current obj queue position if necessary
+				for (String in : dependingOn.get(i)) {
+					if (refIdqueue.contains(in)) {
+						// queue position dependent obj
+						int inqup = refIdqueue.indexOf(in);
+						// queue position current obj
+						int qup = refIdqueue.indexOf(i);
+						// if linking obj is farther up front than dependent obj, place the latter ahead
+						if (inqup < qup) {
+							refIdqueue.remove(qup);
+							refIdqueue.add(inqup, i);
+							System.out.println("Put "+i+" ahead of "+in);
+						}
 					}
 				}
 			}
-		}
-		for (String i : refIdqueue)
-			System.out.println(i);
-		if (newRefIds.size()>0)
-			return null;
-		// now that ids of new references are in order, proceed to ingesting them one by one
-		// for this we retrieve the object identified by the elements of the id list from local DB
-		monitor.beginTask("Injesting new References into Repository. Number of Objects: " + newRefIds.size(),
-				newRefIds.size());
-		/** list of persistent (global) IDs returned by server on ingest on local objects **/
-		Vector<String> persistentIds = new Vector<>();
-		int counter = 0;
-		for (String i : newRefIds) if (!failures.contains(i)){
-			String ref = _mainSearcher.getObjectXML(i);
-			//System.out.println(id);
-			log(1, "Push NEW reference object to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-			try {
-				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, 
-						new Vector<String>(Arrays.asList(ref)));
-				// update local DB using the persistent ID the server returned
-				for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
-					persistentIds.add(idMapping.getValue().toString());
-					// rewrite links to this object in all DB objects of type aodl, podl and mods
-					resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 3);
-					counter ++;
+			for (String i : refIdqueue)
+				System.out.println(i);
+			if (newRefIds.size()>0)
+				return null;
+			// now that ids of new references are in order, proceed to ingesting them one by one
+			// for this we retrieve the object identified by the elements of the id list from local DB
+			monitor.beginTask("Injesting new References into Repository. Number of Objects: " + newRefIds.size(),
+					newRefIds.size());
+			/** list of persistent (global) IDs returned by server on ingest on local objects **/
+			Vector<String> persistentIds = new Vector<>();
+			int counter = 0;
+			for (String i : newRefIds) if (!failures.contains(i)){
+				String ref = _mainSearcher.getObjectXML(i);
+				//System.out.println(id);
+				log(1, "Push NEW reference object to project ["+_projectId+"] at repo ["+_repositoryId+"]");
+				try {
+					Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, 
+							new Vector<String>(Arrays.asList(ref)));
+					// update local DB using the persistent ID the server returned
+					for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
+						persistentIds.add(idMapping.getValue().toString());
+						// rewrite links to this object in all DB objects of type aodl, podl and mods
+						resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 3);
+						counter ++;
+					}
+				} catch (Exception e) {
+					// if ingest fails regardless of thoughtful precautions, remove object and all 
+					// objects that link this object from ingestion queue
+					log(2, "Could not ingest/update new reference object "+i, e);
+					failures.add(ref);
+					// because of failure, we need to avoid ingestion of any mods object linking
+					// the failed object
+					failures.addAll(dependingOn.get(i));
 				}
-			} catch (Exception e) {
-				// if ingest fails regardless of thoughtful precautions, remove object and all 
-				// objects that link this object from ingestion queue
-				log(2, "Could not ingest/update new reference object "+i, e);
-				failures.add(ref);
-				// because of failure, we need to avoid ingestion of any mods object linking
-				// the failed object
-				failures.addAll(dependingOn.get(i));
 			}
-		}
-		
-		
-		// TODO maybe start a second attempt to ingest the failures
-		// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
-		// rewrite local DB object index with new id, update all objects linking the old id
-		// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
-		// (IDService.insertIdModifiedObject)
-		if (!persistentIds.isEmpty()) 
-			_idService.insertIdModifiedObject(persistentIds, "pdrRo"); // XXX stay alert: objects might still pop up as 'modified' later
-		// TODO oder vielleicht exception
-		log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+newRefs.size()+" new objects, server returned "+persistentIds.size()+" global IDs)");
-		return new Vector<String>(failures);
+			
+			
+			// TODO maybe start a second attempt to ingest the failures
+			// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
+			// rewrite local DB object index with new id, update all objects linking the old id
+			// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
+			// (IDService.insertIdModifiedObject)
+			if (!persistentIds.isEmpty()) 
+				_idService.insertIdModifiedObject(persistentIds, "pdrRo"); // XXX stay alert: objects might still pop up as 'modified' later
+			// TODO oder vielleicht exception
+			log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+newRefs.size()+" new objects, server returned "+persistentIds.size()+" global IDs)");
+			return new Vector<String>(failures);
 		}
 	}
 	
@@ -2232,29 +2476,35 @@ public class RepositoryUpdateManager implements IUpdateManager
 			/////////////////
 			//log(1, "Begin to ingest new reference objects", null);
 			//injestNewReferences(monitor);
-			Vector<String> fails = ingestNewReferences1by1(monitor);
+			//Vector<String> fails = ingestNewReferences1by1(monitor);
+			Vector<String> fails = ingestNewPDRObjects(monitor);
 			if (fails == null || fails.isEmpty()) {
 				monitor.done();
 				return updateStatus;
-			}
+			} else success = false;
 			System.out.println(fails);
 			//log(0, "New references successfully ingested into repo");
-			statuses.put("ingest new mods", true);
+			statuses.put("ingest new local objects", true);
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception in ALLIES while ingesting new references", e);
-			statuses.put("ingest new mods", false);
+			log(2, "Exception in ALLIES while ingesting new local objects", e);
+			statuses.put("ingest new local objects", false);
 			return updateStatus;
 		} catch (Exception e) {
 			success = false;
-			log(IStatus.WARNING, "Exception while ingesting new references: ", e);
-			statuses.put("ingest new mods", false);
+			log(IStatus.WARNING, "Exception while ingesting new local objects: ", e);
+			statuses.put("ingest new local objects", false);
+			return updateStatus;
+		}
+		
+		if (!success) {
+			monitor.done();
 			return updateStatus;
 		}
 		
 		
-		if (success)
+		/*if (success)
 		try {
 			//////////
 			// PERSONS
@@ -2294,7 +2544,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new aspects", e);
 			iLogger.log(log);
 			statuses.put("ingest new aodl", false);
-		}
+		}*/
 
 		
 		////////////////////

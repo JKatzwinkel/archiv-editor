@@ -230,7 +230,8 @@ public class PdrId implements Comparable<PdrId>, Cloneable
 	}
 
 	/**
-	 * getter for _type.
+	 * Returns String identifier of object type, usually one of <code>{'pdrRo','pdrPo','pdrAo',...}</code>,
+	 * which is the first of the <code>'.'</code>-separated fields of a full {@link PdrId} string representation. 
 	 * @return _type.
 	 */
 	public final String getType()
