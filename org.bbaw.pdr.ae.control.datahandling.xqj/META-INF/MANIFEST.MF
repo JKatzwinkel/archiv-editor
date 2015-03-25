@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: DataHandlingXQJ
 Bundle-SymbolicName: org.bbaw.pdr.ae.control.datahandling.xqj;singleton:=true
-Bundle-Version: 2.3.7.qualifier
+Bundle-Version: 2.3.10.qualifier
 Bundle-Activator: org.bbaw.pdr.ae.control.datahandling.xqj.internal.Activator
 Bundle-Vendor: BBAW
 Require-Bundle: org.eclipse.core.runtime,

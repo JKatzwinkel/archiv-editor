@@ -786,7 +786,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					_conflictingRepAspects.addAll(subConflRepAspects);
 				}
 				monitor.worked(subAspects.size());
-				begin = end + 1; // FIXME: fehlt da nicht einer?
+				begin = end;
 				end = (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE + end) ? (end + MODIFIEDOBJECTS_PACKAGE_SIZE) :aspects.size();
 				counter += subAspects.size();
 				subAspects.clear();
@@ -884,7 +884,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 				monitor.worked(subPersons.size());
 				// proceed to next chunk
-				begin = end + 1; // FIXME fehlt da nicht einer?
+				begin = end;
 				end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE+end) ? (end+NEWOBJECTS_PACKAGE_SIZE) : persons.size();
 				counter += subPersons.size();
 				subPersons.clear();
@@ -961,7 +961,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 				monitor.worked(subReferences.size());
 				// proceed to next chunk
-				begin = end + 1; // FIXME: faellt hier nicht einer unter den tisch?
+				begin = end;
 				end = (references.size() > NEWOBJECTS_PACKAGE_SIZE+end) ? (end+NEWOBJECTS_PACKAGE_SIZE) : references.size();   
 				counter += subReferences.size();
 				subReferences.clear();
@@ -1014,7 +1014,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				log(1, "Push "+subUsers.size()+" user objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				Repository.modifyObjects(_repositoryId, _projectId, subUsers, true);
 				// XXX: kein conflict handling???
-				begin = end + 1; //FIXME fehlt da nicht einer?
+				begin = end;
 				end = (users.size() > MODIFIEDOBJECTS_PACKAGE_SIZE+end) ? (end + MODIFIEDOBJECTS_PACKAGE_SIZE) : users.size();  
 				counter += subUsers.size();
 				subUsers.clear();
@@ -1335,11 +1335,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private String makeValidPDRObjectXML(String xml) {
 		PdrId id = new PdrId(extractPdrId(xml));
-		switch (id.getType()) {
-			 case "pdrRo": return removeRefPrefix(makeValidXMLReference(xml));
-			 case "pdrPo": return removePersonPrefix(makeValidXMLPerson(xml));
-			 case "pdrAo": return removeAspectPrefixes(makeValidXMLAspect(xml));
-		}
+		if (id.getType().equals("pdrRo")) return removeRefPrefix(makeValidXMLReference(xml));
+		if (id.getType().equals("pdrPo")) return removePersonPrefix(makeValidXMLPerson(xml));
+		if (id.getType().equals("pdrAo")) return removeAspectPrefixes(makeValidXMLAspect(xml));
 		log(2, "Didn't delegate XML validation/validization. Possibly invalid.");
 		return xml;
 	}
@@ -1352,11 +1350,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private boolean isValidPDRObjectXML(String xml) {
 		PdrId id = new PdrId(extractPdrId(xml));
-		switch (id.getType()) {
-			 case "pdrRo": return isValidXMLReference(xml);
-			 case "pdrPo": return isValidXMLPerson(xml);
-			 case "pdrAo": return isValidXMLAspect(xml);
-		}
+		if (id.getType().equals("pdrRo")) return isValidXMLReference(xml);
+		if (id.getType().equals("pdrPo")) return isValidXMLPerson(xml);
+		if (id.getType().equals("pdrAo")) return isValidXMLAspect(xml);
 		log(2, "Didn't delegate XML validation. Possibly invalid.");
 		return false;
 	}
@@ -1394,9 +1390,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 	private final void injestNewUsers(String userId, String password) throws Exception
 	{
 		synchronized (_dbCon) {
-			Vector<String> users = getNewUsers();
+			Vector<String> users = new Vector<String>();
+			// filter user objects with inaccurate project ID
+			for (String s : getNewUsers())
+				if (extractPdrId(s).split("\\.")[2].equals(""+_projectId))
+					users.add(s);
 			if (users.size()<1) return;
-			log(1, "Begin ingesting new users from local DB into repo:"+users.size());
+			String logmsg="Begin ingesting new users from local DB into repo:"+users.size();
+			for (String s : users)
+				logmsg += "\n "+s.replaceAll("(\n|\t)", "");
+			log(1, logmsg);
 			int counter = 0;
 			int begin = 0;
 			int end = (users.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : users.size(); 
@@ -1417,7 +1420,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 			}
 			while (subUsers != null && !subUsers.isEmpty())	{
-				log(1, "Push "+subUsers.size()+" oudl objects to remote repo");
+				logmsg = "Ingest "+subUsers.size()+" uodl objects to remote repo:";
+				for (String s : subUsers)
+					logmsg += "\n " + extractPdrId(s);
+				log(1, logmsg);
 				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subUsers);
 				if (!idMap.isEmpty()) {
 					// System.out.println("size of map " + idMap.size());
@@ -1477,7 +1483,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @return
 	 */
 	static private Vector<String> findLinkedLocalObjects(String xml) {
-		Vector<String> links = new Vector<>();
+		Vector<String> links = new Vector<String>();
 		PdrId id = new PdrId(extractPdrId(xml)); // extract pdr id from xml
 		if (id.getType().equals("pdrRo")) {	
 			// find links in Mods object
@@ -1516,15 +1522,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 	private Vector<String> ingestNewPDRObjects(final IProgressMonitor monitor) throws Exception {
 		synchronized (_dbCon) {
 			// Ids of objects that couldn't be ingested */
-			Set<String> failures = new TreeSet<>();
+			Set<String> failures = new TreeSet<String>();
 			// XML repr of new local PDR objects as obtained from MainSearcher */
-			Vector<String> newObjsXml =  new Vector<>();
+			Vector<String> newObjsXml =  new Vector<String>();
 			// ids of new local PDR objects in whatever order local DB returned them*/
-			Vector<String> newObjsIds = new Vector<>();
+			Vector<String> newObjsIds = new Vector<String>();
 			// this is a dictionary of new local objects which object ids reference and are hence dependent on
-			HashMap<String, Vector<String>> dependencies = new HashMap<>();
-			// this is a dictionary of transitive incoming links between new reference mods objects. **/ 
-			HashMap<String, Set<String>> dependingOn = new HashMap<>();
+			HashMap<String, Vector<String>> dependencies = new HashMap<String, Vector<String>>();
+			// this is a dictionary of transitive incoming links between new local objects. **/ 
+			HashMap<String, Set<String>> dependingOn = new HashMap<String, Set<String>>();
 			// retrieve new local objects from MainSearcher
 			newObjsXml.addAll(_mainSearcher.getNewReferences());
 			newObjsXml.addAll(_mainSearcher.getNewPersons());
@@ -1549,7 +1555,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					dependingOn.get(d).add(i);
 						
 			// sequence of new objs Ids put in dependency-sensitive order
-			Vector<String> objsIdqueue = new Vector<>();
+			Vector<String> objsIdqueue = new Vector<String>();
 			// infer transitive dependencies, detect dependency loops
 			// resolve dependencies
 			for (String i : newObjsIds) {
@@ -1585,13 +1591,20 @@ public class RepositoryUpdateManager implements IUpdateManager
 						}
 					}
 			}
+			// TODO: jetzt sollten in failures eventuelle invalide objekte stehen; auf der grundlage
+			// sollte man hier oder so die von diesen abhaengigen objekte ebenfalls rausfischen..!!!
+			TreeSet<String> faildeps = new TreeSet<String>();
+			for (String i : failures)
+				faildeps.addAll(dependingOn.get(i));
+			failures.addAll(faildeps);
+				
 			for (String i : objsIdqueue)
 				System.out.println(i);
 			//if (newObjsIds.size()>0)
 				//return null;
 			// ===== INGEST =====
 			// pdr object types ingest sequence
-			Vector<String> pdrTypes = new Vector<>(Arrays.asList("pdrRo", "pdrPo", "pdrAo"));
+			Vector<String> pdrTypes = new Vector<String>(Arrays.asList("pdrRo", "pdrPo", "pdrAo"));
 			// now that ids of new local objects are in order, proceed to ingesting them in type-wise packets
 			// for this we retrieve the object identified by the elements of the id queue from local DB
 			monitor.beginTask("Ingesting new local objects into repository. Number of objects: " + newObjsIds.size(), newObjsIds.size());
@@ -1601,188 +1614,50 @@ public class RepositoryUpdateManager implements IUpdateManager
 			for (String pdrType : pdrTypes) {
 				log(0, "Ingest new local objects of type "+pdrType);
 				// prepare packet of new objects for current type
-				Vector<String> packet = new Vector<>();
+				Vector<String> packet = new Vector<String>();
 				for (String i : objsIdqueue)
 					if (!failures.contains(i)) // exclude objects that would fail due to unmet dependencies
 						if (pdrType.equals(i.substring(0, 5)))
 							packet.add(_mainSearcher.getObjectXML(i));
-				log(1, "Push "+packet.size()+" NEW "+pdrType+" objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");				
-				// list of persistent (global) IDs returned by server on ingest on local objects 
-				Vector<String> persistentIds = new Vector<>();
-				// attempt ingest
-				try {
-					Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, packet);
-					// update local DB using the persistent ID the server returned
-					for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
-						persistentIds.add(idMapping.getValue().toString());
-						// rewrite links to this object in all DB objects of dependent types
-						// XXX only in the end when all objects have been ingested
-						resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 
-								3-pdrTypes.indexOf(pdrType));
-						counter ++;
+				if (!packet.isEmpty()) {
+					log(1, "Push "+packet.size()+" NEW "+pdrType+" objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");				
+					// list of persistent (global) IDs returned by server on ingest on local objects 
+					Vector<String> persistentIds = new Vector<String>();
+					//////////////////
+					// attempt ingest
+					//////////////////
+					try {
+						Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, packet);
+						// update local DB using the persistent ID the server returned
+						for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
+							persistentIds.add(idMapping.getValue().toString());
+							// rewrite links to this object in all DB objects of dependent types
+							resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 
+									3-pdrTypes.indexOf(pdrType));
+							counter ++;
+						}
+						log(0, "Ingested "+counter+"/"+packet.size()+" "+pdrType+" new local objects.");
+						// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
+						// rewrite local DB object index with new id, update all objects linking the old id
+						// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
+						// (IDService.insertIdModifiedObject)
+						if (!persistentIds.isEmpty()) 
+							_idService.insertIdModifiedObject(persistentIds, pdrType); // XXX stay alert: objects might still pop up as 'modified' later
+						log(0, "server returned "+persistentIds.size()+" global IDs)");
+					} catch (Exception e) {
+						// if ingest fails regardless of thoughtful precautions, terminate ingest, return all queued objects
+						// as failure list
+						log(2, "Could not ingest/update new local objects (login as "+Configuration.getInstance().getPDRUserID()+" @ "+Configuration.getInstance().getAxis2BaseURL()+")", e);
+						
+						failures.addAll(packet);
+						return new Vector<String>( failures );
 					}
-					log(0, "Ingested "+counter+"/"+packet.size()+" "+pdrType+" new local objects.");
-					// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
-					// rewrite local DB object index with new id, update all objects linking the old id
-					// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
-					// (IDService.insertIdModifiedObject)
-					// XXX only in the end when all has been ingested
-					if (!persistentIds.isEmpty()) 
-						_idService.insertIdModifiedObject(persistentIds, pdrType); // XXX stay alert: objects might still pop up as 'modified' later
-					log(0, "server returned "+persistentIds.size()+" global IDs)");
-				} catch (Exception e) {
-					// if ingest fails regardless of thoughtful precautions, terminate ingest, return all queued objects
-					// as failure list
-					log(2, "Could not ingest/update new local objects ", e);
-					failures.addAll(packet);
-					return objsIdqueue;
+					monitor.worked(packet.size());
 				}
-				monitor.worked(packet.size());
 			}
 			
 			
 			log(0, "Done pushing NEW local objects. Total number of ingested objects: "+counter+"\n(out of "+newObjsXml.size()+" new objects");
-			return new Vector<String>(failures);
-		}
-	}
-	
-	/**
-	 * Ingests new reference objects one after another, after establishing a sequential order
-	 * that ensures no objects with dead links (unknown ids) are sent to the server.
-	 * Returns a list of successfully ingested objects in xml or something like this.
-	 * @param monitor
-	 * @return
-	 * @throws Exception
-	 */
-	private Vector<String> ingestNewReferences1by1(final IProgressMonitor monitor) throws Exception {
-		synchronized (_dbCon) {
-			// load xml of new objects, check validity of mods xml
-			// get all mods objects from local DB with a local ID (starting with '1')
-			// and validate them against rodl mods schema
-			Set<String> failures = new TreeSet<>();
-			Vector<String> newRefs = new Vector<>(); 
-			for (String ref : _mainSearcher.getNewReferences())
-				if (!isValidXMLReference(ref)) { // XXX isvalidxmlreference kann man sich sparen
-					String xml2 = makeValidXMLReference(ref); // XXX why? we don't use this xml do we?
-					if (xml2 != null) {
-						newRefs.add(xml2);
-					} else
-						log(2, "Invalid Reference: "+ref);
-				} else
-					newRefs.add(ref);
-			if (newRefs.isEmpty()) return null;
-			// extract ids from mods objects xml, put them in an order considering relatedItem-link structure
-			// i.e. bring objects in order in which no relatedItem links to unknown/not yet ingested objects can occur
-			/** ids of new reference objects in whatever order local DB returned them*/
-			Vector<String> newRefIds = new Vector<>();
-			/** this is a dictionary of transitive incoming links between new reference mods objects. **/ 
-			HashMap<String, Set<String>> dependingOn = new HashMap<>();
-			for (String s : newRefs) {
-				//System.out.println(s);
-				// remove mods namespace prefix from xml
-				s = removeRefPrefix(s); // remove nx prefix for pattern matching
-				String id = extractPdrId(s);
-				newRefIds.add(id);
-				if (!dependingOn.containsKey(id))
-					dependingOn.put(id, new TreeSet<String>());
-				// find links to other new references which would be required to occur first in id list
-				Matcher m = pdrModsLinkPattern.matcher(s);
-				while (m.find()) {
-					String relid = m.group(1);
-					System.out.println("Mods objekt "+id+" references "+relid);
-					// register link from id to relid
-					if (!dependingOn.containsKey(relid))
-						dependingOn.put(relid, new TreeSet<String>());
-					dependingOn.get(relid).add(id);
-				}
-				if (!newRefIds.contains(id))
-					newRefIds.add(id);
-			}
-			/** new reference Ids put in order*/
-			Vector<String> refIdqueue = new Vector<>();
-			// resolve dependencies
-			for (String i : newRefIds) {
-				Set<String> dependents = new TreeSet<String>(dependingOn.get(i));
-				boolean expanding = true;
-				while (expanding) {
-					for (String in : dependingOn.get(i)) // add all objs linking known dependencies as dependencies 
-						dependents.addAll(dependingOn.get(in));
-					expanding = (dependents.size()>dependingOn.get(i).size());
-					dependingOn.put(i, new TreeSet<String>(dependents));		
-				}
-				// check for loops
-				if (dependents.contains(i)) {
-					System.out.println("Detected object interreference loop at object "+i);
-					return newRefIds;
-				}
-			}
-			// bring object ids in correct order
-			for (String i : newRefIds) {
-				System.out.println(i + " <<< "+dependingOn.get(i));
-				// append id of current object to queue 
-				refIdqueue.add(i);
-				// now check dependents and move current obj queue position if necessary
-				for (String in : dependingOn.get(i)) {
-					if (refIdqueue.contains(in)) {
-						// queue position dependent obj
-						int inqup = refIdqueue.indexOf(in);
-						// queue position current obj
-						int qup = refIdqueue.indexOf(i);
-						// if linking obj is farther up front than dependent obj, place the latter ahead
-						if (inqup < qup) {
-							refIdqueue.remove(qup);
-							refIdqueue.add(inqup, i);
-							System.out.println("Put "+i+" ahead of "+in);
-						}
-					}
-				}
-			}
-			for (String i : refIdqueue)
-				System.out.println(i);
-			if (newRefIds.size()>0)
-				return null;
-			// now that ids of new references are in order, proceed to ingesting them one by one
-			// for this we retrieve the object identified by the elements of the id list from local DB
-			monitor.beginTask("Injesting new References into Repository. Number of Objects: " + newRefIds.size(),
-					newRefIds.size());
-			/** list of persistent (global) IDs returned by server on ingest on local objects **/
-			Vector<String> persistentIds = new Vector<>();
-			int counter = 0;
-			for (String i : newRefIds) if (!failures.contains(i)){
-				String ref = _mainSearcher.getObjectXML(i);
-				//System.out.println(id);
-				log(1, "Push NEW reference object to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-				try {
-					Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, 
-							new Vector<String>(Arrays.asList(ref)));
-					// update local DB using the persistent ID the server returned
-					for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
-						persistentIds.add(idMapping.getValue().toString());
-						// rewrite links to this object in all DB objects of type aodl, podl and mods
-						resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 3);
-						counter ++;
-					}
-				} catch (Exception e) {
-					// if ingest fails regardless of thoughtful precautions, remove object and all 
-					// objects that link this object from ingestion queue
-					log(2, "Could not ingest/update new reference object "+i, e);
-					failures.add(ref);
-					// because of failure, we need to avoid ingestion of any mods object linking
-					// the failed object
-					failures.addAll(dependingOn.get(i));
-				}
-			}
-			
-			
-			// TODO maybe start a second attempt to ingest the failures
-			// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
-			// rewrite local DB object index with new id, update all objects linking the old id
-			// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
-			// (IDService.insertIdModifiedObject)
-			if (!persistentIds.isEmpty()) 
-				_idService.insertIdModifiedObject(persistentIds, "pdrRo"); // XXX stay alert: objects might still pop up as 'modified' later
-			// TODO oder vielleicht exception
-			log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+newRefs.size()+" new objects, server returned "+persistentIds.size()+" global IDs)");
 			return new Vector<String>(failures);
 		}
 	}
@@ -2447,9 +2322,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 		
 		// new project, local user still does not yet exist in repository
 		if (!success) {
-			//use default user to injest new users.
+			//use pdrAdmin user to injest new users.
 			log(IStatus.INFO, "New project; authenticate as pdrAdmin", null);
-			Configuration.getInstance().setPDRUser("pdrUo.001.002.000000001", "pdrrdp");
+			// XXX 
+			//Configuration.getInstance().setPDRUser("pdrUo.001.002.000000001", "pdrrdp");
+			Configuration.getInstance().setPDRUser("pdrUo.001.001.000000001", "pdrrdp");
 			success = true;
 			try {
 				log(1, "Second attempt to ingest new user objects to repo", null);
@@ -2470,21 +2347,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		
 		
-		try	{
+		try {
 			/////////////////
-			// NEW REFERENCES
+			// NEW LOCAL OBJS
 			/////////////////
-			//log(1, "Begin to ingest new reference objects", null);
-			//injestNewReferences(monitor);
-			//Vector<String> fails = ingestNewReferences1by1(monitor);
+			// method returns id list of objects that are known to have failed to be ingested
 			Vector<String> fails = ingestNewPDRObjects(monitor);
-			if (fails == null || fails.isEmpty()) {
-				monitor.done();
-				return updateStatus;
-			} else success = false;
-			System.out.println(fails);
-			//log(0, "New references successfully ingested into repo");
-			statuses.put("ingest new local objects", true);
+			if (fails != null && !fails.isEmpty()) {
+				String logmsg = "At least "+fails.size()+" new local objects could not be ingested into remote:";
+				for (String i : fails)
+					logmsg+="\n"+i;
+				log(2, logmsg);
+				//..
+				success = false;
+			} else
+				log(1, "Ingested new local objects without failures");
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
@@ -2496,56 +2373,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log(IStatus.WARNING, "Exception while ingesting new local objects: ", e);
 			statuses.put("ingest new local objects", false);
 			return updateStatus;
-		}
-		
-		if (!success) {
-			monitor.done();
-			return updateStatus;
-		}
+		} 
 		
 		
-		/*if (success)
-		try {
-			//////////
-			// PERSONS
-			//////////
-			//log(1, "Begin to ingest new persons into repo");
-			injestNewPersons(monitor);
-			//log(0, "New person objects successfully ingested into repo");
-			statuses.put("ingest new podl", true);
-		} catch (PDRAlliesClientException e) {
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log(2, "Exception in ALLIES while ingesting new persons: ", e);
-			statuses.put("ingest new podl", false);
-		} catch (Exception e) {
-			success = false;
-			log(2, "Exception while ingesting new persons: ", e);
-			statuses.put("ingest new podl", false);
-		}
-		
-		
-		if (success)
-		try	{
-			//////////////
-			// NEW ASPECTS
-			//////////////
-			//log(1, "Begin to ingest new aspects into repo");
-			injestNewAspects(monitor);
-			//log(0, "New aspects successfully ingested into repo");
-			statuses.put("ingest new aodl", true);
-		} catch (PDRAlliesClientException e) {
-			updateStatus = Status.CANCEL_STATUS;
-			success = false;
-			log(2, "Exception in ALLIES while ingesting new aspects into repo: ", e);
-			statuses.put("ingest new aodl", false);
-		} catch (Exception e) {
-			success = false;
-			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new aspects", e);
-			iLogger.log(log);
-			statuses.put("ingest new aodl", false);
-		}*/
-
 		
 		////////////////////
 		// MODIFIED OBBJECTS
@@ -3205,13 +3035,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 		String name;
 		Configuration.getInstance().setAxis2BaseURL(url.toString());
 		//FIXME nur als default
-		if (userID != null && password != null)	{
+		/*if (userID != null && password != null)	{
 			Configuration.getInstance().setPDRUser(userID, password);
-		} else {
-			// anmelden als repository (project) admin XXX warum projekt 2?
-			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
-			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
+		} else */{
+			// anmelden als repository admin XXX warum projekt 2?
+			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp");
+			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		}
+		log(1, "Log in remote repo as: "+Configuration.getInstance().getPDRUserID());
 
 		// push all users locally identified as NEW to remote repo
 		injestNewUsers(userID, password);
@@ -3261,6 +3092,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			_dbCon.closeDB(col);
 			_idService.clearUserUpdateStates();
 			Configuration.getInstance().setPDRUser(userID, password);
+			log(1, "Logging into remote repo as "+Configuration.getInstance().getPDRUserID());
 		}
 		return null;
 	}
@@ -3430,15 +3262,18 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	private void checkAndInjestStandardUsers(Vector<String> standardUsers, String userId, String password)
 	{
+		log(1, "Prepare to check and possibly ingest standard users");
 		Collections.sort(standardUsers);
 		Vector<String> repoUsers = new Vector<String>(10);
 		// XXX wieso immer projekt nr 2?
-		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
+		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
+		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp"); // works
 		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
+		log(1, "Logging into remote as "+Configuration.getInstance().getPDRUserID());
 		try	{
 			repoUsers = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, 1, 9);
 		} catch (PDRAlliesClientException e2) {
-			log(2, "Download of remote repo user definitions failed: ", e2);
+			log(2, "Download of remote repo user definitions failed,\npossibly due to failed authentication as "+Configuration.getInstance().getPDRUserID(), e2);
 		}
 		Collections.sort(repoUsers);
 		boolean found = false;
@@ -3448,7 +3283,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				found = false;
 				for (String u : repoUsers)
 					if (extractPdrId(u).equals(extractPdrId(user)))
-						found = true;
+						found = true; // standarduser is already present on remote, yay!
 				if (!found) {
 					Vector<String> injestUsers = new Vector<String>(1);
 					User newUser = null;
@@ -3497,22 +3332,28 @@ public class RepositoryUpdateManager implements IUpdateManager
 						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e1);iLogger.log(log);
 					}
 					
+					// XXX einzeln ingesten? echt???
 					injestUsers.add(removeUserPrefix(user));
+					log(1, "Ingest "+injestUsers.size()+" standard users to remote");
 					try	{
-						// XXX persistente IDs werden nicht verarbeitet???
-						Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
+						// XXX persistente IDs werden nicht verarbeitet??? rueckgabe wird infach weggeschmissen?
+						//Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
+						Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
+						for (Entry<Identifier, Identifier> mapping : idMap.entrySet())
+							System.out.println(" "+mapping.getKey()+" -> "+mapping.getValue());
 					} catch (InvalidIdentifierException e) {
-						// TODO Auto-generated catch block
-						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+						log = new Status(2, Activator.PLUGIN_ID, "Invalid ID during ingest of standard user[s] "+injestUsers, e);iLogger.log(log);
 					} catch (PDRAlliesClientException e) {
-						// TODO Auto-generated catch block
-						log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+						log = new Status(2, Activator.PLUGIN_ID, "Allies Error during ingest of standard user[s] "+injestUsers
+								+"\nAuthentification seems to have failed for "+Configuration.getInstance().getPDRUserID(), e);iLogger.log(log);
 					}
-				}
+				} else
+					log(1, "Standard user "+extractPdrId(user)+" already present on remote repo");
 			}
 		}
 		// reset repo authentification to locally logged in user creds
 		Configuration.getInstance().setPDRUser(userId, password);
+		log(1, "Logging into remote repo as "+Configuration.getInstance().getPDRUserID());
 	}
 
 	@Override
@@ -3521,7 +3362,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
 		Configuration.getInstance().setAxis2BaseURL(url.toString());
-		return Repository.getUserID(userName, projectID);
+		log(1, "Request ID lookup for user "+userName+" in project "+projectID+" at remote repo "+url);
+		String id = Repository.getUserID(userName, projectID);
+		log(1, "Remote responds with ID "+id);
+		return id;
 	}
 
 	@Override
@@ -3539,19 +3383,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 		if (userID != null && password != null)
 		{
 			Configuration.getInstance().setPDRUser(userID, password);
-
 		}
 		else
 		{
-			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
+			// fallback to pdrAdmin
+			// project ID not relevant in fallback user id? no. pdrAdmin exists only in project 001
+			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "."+String.format("%03d",_projectId)+".000000001", "pdrrdp");
+			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp");
 		}
 
 		
 		List<IDRange> ranges = Utilities.getOccupiedObjectIDRanges(PDRType.USER, _repositoryId, _projectId, 1,
 				MAX_OBJECT_NUMBER);
 		String col = "users";
-		int lowerBound = 1;
-		int upperBound = 1;
+		int lowerBound = 0;
+		int upperBound = 0;
 		synchronized (_dbCon)
 		{
 			_dbCon.openCollection(col);

@@ -785,7 +785,7 @@ public class MainSearcher extends AMainSearcher
 	}
 
 	
-	private final static HashMap<Character, String> collectionNames = new HashMap<>();
+	private final static HashMap<Character, String> collectionNames = new HashMap<Character, String>();
 	static {
 		for (String n : new String[]{"person", "aspect", "reference", "users"})
 			collectionNames.put(n.charAt(0), n);
@@ -794,7 +794,7 @@ public class MainSearcher extends AMainSearcher
 	
 	public final String getObjectXML(final String idString) throws Exception {
 		String col = collectionNames.get(idString.toLowerCase().charAt(3));
-		System.out.println(idString.toLowerCase().charAt(3)+" "+col);
+		//System.out.println(idString.toLowerCase().charAt(3)+" "+col);
 		return getObjectXML(idString, col);
 	}
 	
@@ -826,7 +826,7 @@ public class MainSearcher extends AMainSearcher
 		}
 
 		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getObjectXML " + query);
-		iLogger.log(_log);
+		//iLogger.log(_log);
 
 		// // execute the XQuery Expression
 		// OutputStream output = new OutputStream()
