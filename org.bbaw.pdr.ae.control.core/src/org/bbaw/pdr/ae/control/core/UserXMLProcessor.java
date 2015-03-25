@@ -278,7 +278,7 @@ public class UserXMLProcessor
 		eventWriter.add(eventFactory.createEndDocument());
 		eventWriter.close();
 
-		_log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "XMLProcessor output: " + bout.toString());
+		_log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "XMLProcessor output: " + bout.toString().replaceAll("(\n|\t)", ""));
 		iLogger.log(_log);
 		return bout.toString();
 	}

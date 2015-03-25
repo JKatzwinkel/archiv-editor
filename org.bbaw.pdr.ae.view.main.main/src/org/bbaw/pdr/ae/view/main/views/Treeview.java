@@ -832,7 +832,10 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 						_mainSearcher.getNewReferences().size()+"/"+
 						_mainSearcher.getNewPersons().size()+"/"+
 						_mainSearcher.getNewAspects().size()+
-						" - Modified objects [r/p/a]: ";
+						" - Modified objects [r/p/a]: "+
+						_facade.getIdService().getModifiedReferenceIds()+"/"+
+						_facade.getIdService().getModifiedPersonIds()+"/"+
+						_facade.getIdService().getModifiedAspectIds();
 					setStatusLine(stats);
 					} catch (Exception e) {
 						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));

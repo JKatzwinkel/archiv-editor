@@ -517,6 +517,7 @@ public class LoginDialog extends TitleAreaDialog
 							IUpdateManager[] rums = Facade.getInstanz().getUpdateManagers();
 							for (IUpdateManager rum : rums) {
 								try {
+									iLogger.log(new Status(IStatus.INFO, Activator.PLUGIN_ID, "Look up ID of user "+_userName+" in project "+_projectId));
 									_userID = rum.getUserId(_userName, _projectId);
 									monitor.setTaskName("Update Users from Repository");
 									rum.loadInitialUsers(_userID, _userPassword, null);
