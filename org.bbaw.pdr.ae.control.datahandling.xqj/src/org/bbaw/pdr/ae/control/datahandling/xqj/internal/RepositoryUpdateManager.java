@@ -33,17 +33,14 @@
 package org.bbaw.pdr.ae.control.datahandling.xqj.internal;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -53,7 +50,6 @@ import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.stream.XMLStreamException;
@@ -117,8 +113,6 @@ import org.eclipse.ui.progress.UIJob;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
 import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.XMLFilterImpl;
 import org.xml.sax.helpers.XMLReaderFactory;
@@ -439,6 +433,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Gets the modified persons.
+	 * I.e. get IDs from DB coll pdrPo/modified/id from {@link PdrIdService},
+	 * retrieve object XML stored from DB using {@link MainSearcher#searchObjectString(String, String)}
+	 * with coll name parameter "person", remove podl namespace prefixes from XML,
+	 * return all you've got. 
 	 * @return the modified persons
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
@@ -465,6 +463,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Gets the modified references.
+	 * I.e. get IDs in DB collection pdrRo/modified/id from {@link PdrIdService},
+	 * get local DB XML for those from {@link MainSearcher#searchObjectString(String, String)} 
+	 * with "reference" as collection name parameter and return those XML strings.
+	 * rodl ns prefixes are not removed from XML
 	 * @return the modified references
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
@@ -484,6 +486,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Gets the modified users.
+	 * I.e. query Ids from pdrUo/modified/id DB coll, look users up in
+	 * uodl namespace in DB via {@link UserManager#getUserById(String)},
+	 * serialize into XML, remove uodl namespace prefixes from XML,
+	 * return list of XML strings. 
 	 * @return the modified users
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
@@ -515,7 +521,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 	}
 
 	/**
-	 * Gets the new users.
+	 * Gets the new users, i.e. queries all IDs in DB collection pdrUo/new/id and
+	 * uses a {@link UserXMLProcessor} to generate XML serialization of the objects
+	 * which a {@link UserManager} provides for those IDs.
+	 * Btw. uodl namespace prefixes in XML tags are apparently being removed before return.
+	 * 
 	 * @return the new users
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
@@ -549,6 +559,22 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Handle objects conflicts.
+	 * <p>
+	 * Processes the three update conflicts lists populated earlier during the calls of
+	 * {@link #injestModifiedReferences(IProgressMonitor)}, {@link #injestModifiedPersons(IProgressMonitor)}
+	 * and {@link #injestModifiedAspects(IProgressMonitor)}.
+	 * Update conflict lists contain entire objects.
+	 * XML from update conflicts lists is being parsed and {@link PdrObject} subclass instances are
+	 * created for them. Local counterpart is obtained from {@link Facade}.
+	 * A {@link PDRObjectsConflict} instance is created for each item in the update conflict lists,
+	 * and initialized with both the remote and the local {@link PdrObject} instances.
+	 * </p><p>
+	 * Then an {@link UpdateConflictDialog} is opened and if it returns 0, 
+	 * {@link PdrIdService#clearAllUpdateStates()} is called. Regardless of
+	 * the result of this call, {@link #insertConflictingObjects(Vector, IProgressMonitor)}
+	 * gets called three times, one for every list of {@link PDRObjectsConflict} instances.
+	 * Finally, {@link Facade#refreshAllData()} is invoked.
+	 * </p>
 	 * @param monitor the monitor
 	 */
 	private void handleObjectsConflicts(final IProgressMonitor monitor)
@@ -742,6 +768,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Injest modified aspects.
+	 * <p>Seems to work exactly like {@link #injestModifiedReferences(IProgressMonitor)} and
+	 * {@link #injestModifiedPersons(IProgressMonitor)}. aodl ns prefixes are removed from XMl.
 	 * @param monitor the monitor
 	 * @throws XQException the xQ exception
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
@@ -809,6 +837,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Injest modified config.
+	 * <p>
+	 * query object IDs in DB coll config/modified/id. Those are the configuration providers, apparently.
+	 * Then iterate through all those config providers, retrieve some {@link DatatypeDesc} objects for them from
+	 * a {@link ConfigManager}, which represent dltl XML schema, and sends them to the remote one after another
+	 * by calling {@link Utilities#setCategories(String, String)}.
+	 * </p>
 	 * @throws XQException the xQ exception
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 * @throws PDRAlliesClientException the pDR allies client exception
@@ -824,6 +858,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// XXX anpassen
 			for (String s : configProviders)
 			{
+				log(1, "Send category definition on server for locally modified provider "+s);
 				DatatypeDesc dtd = _configManager.getDatatypeDesc(s);
 				String configStr = new ConfigXMLProcessor().writeToXML(dtd);
 				// System.out.println("injestModifiedConfig() " + configStr);
@@ -836,6 +871,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Injest modified persons.
+	 * <p>
+	 * get XML of person objects registered as modified from DB.
+	 * remove podl prefixes in XML.
+	 * validate XML.
+	 * Send XML list to server and save update conflict list it returns.
+	 * </p>
 	 * @param monitor the monitor
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 * @throws PDRAlliesClientException the pDR allies client exception
@@ -907,6 +948,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Injest modified references.
+	 * <p>
+	 * Get XML of modified references from DB
+	 * Remove rodl/mods namespaces.
+	 * Push XML to server using {@link Repository#modifyObjects(int, int, List, boolean)}
+	 * save server response (list of conflicting objects) for later.
+	 * </p> 
 	 * @param monitor the monitor
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 * @throws PDRAlliesClientException the pDR allies client exception
@@ -985,6 +1032,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Injest modified users.
+	 * <p>
+	 * Get XML of users whose IDs are in pdrUo/modified/id DB collection.
+	 * Send XML list to server by calling {@link Repository#modifyObjects(int, int, List, boolean)},
+	 * with forced update flag set to true.
+	 * Don't mind update conflict that might be returned by server.
+	 * </p>  
+	 * 
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 * @throws PDRAlliesClientException the pDR allies client exception
 	 * @throws XQException the xQ exception
@@ -1381,6 +1435,20 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Injest new users.
+	 * <p>
+	 * XML serialization of user objects whose IDs are in the local pdrUo/new/id DB collection
+	 * is obtained via  {@link #getNewUsers()}.
+	 * Object IDs are then extracted from those very XML strings which have themselves been just queried by ID.
+	 * User objects are then divided into two sets, one for users to be ingested into remote, one for
+	 * standard users with IDs lower than 10, which are expected to be present in every project.
+	 * The collection of users to be ingested is being ingested first, the collection of standard users
+	 * is ingested later in method {@link #checkAndInjestStandardUsers(Vector, String, String)},
+	 * which does not process temp to persistent ID mapping returned by server.
+	 * (To tell apart standard users from custom local users, their IDs are again extracted from
+	 * XML strings using regular expressions...)
+	 * Finally, persistent user IDs as returned from the server at XML ingest are propagated
+	 * in the local DB.
+	 * </p>
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 * @throws PDRAlliesClientException the pDR allies client exception
 	 * @throws XQException the xQ exception
@@ -2282,6 +2350,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 		IStatus updateStatus = Status.OK_STATUS;
 		Date currentUpdate;
 		
+		// TODO am besten komplette synchro nochmal von scratch neu schreiben
+		
+		// TODO wir muessen uns was ueberlegen falls keine user credentials zu haben sind. 
+		// manchmal geht user wechseln ja schief und dann muessen wir nochmal login dialog oeffnen oder so 
+		
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
 		_repositoryId = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "REPOSITORY_ID",
@@ -2302,6 +2375,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 			////////
 			// USERS
 			////////
+			// user ids aus DB collection pdrUo/new/id
+			// user objekte von UserManager
+			// XML serialisierung
+			// XML parsing um projekt ID zu pruefen
+			// XML parsing um standard user rauszufiltern
+			// ingest von usern mit ID>9, update lokale DB
+			// ingest standard user ohne DB update
 			//log(IStatus.INFO, "Ingest of new Users", null);
 			injestNewUsers(userID, password);
 			//log(IStatus.OK, "New Users successfully ingested", null);
@@ -2321,10 +2401,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		
 		// new project, local user still does not yet exist in repository
+		// XXX kann wahrscheinlich komplett weg, niemand sagt dasz das repo nen pdrAdmin mit dem pw hat (siehe musmig)
 		if (!success) {
 			//use pdrAdmin user to injest new users.
 			log(IStatus.INFO, "New project; authenticate as pdrAdmin", null);
-			// XXX 
+			// XXX ok
 			//Configuration.getInstance().setPDRUser("pdrUo.001.002.000000001", "pdrrdp");
 			Configuration.getInstance().setPDRUser("pdrUo.001.001.000000001", "pdrrdp");
 			success = true;
@@ -2387,6 +2468,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//////////
 			// CONFIGS
 			//////////
+			// queries ID of modified configs from local DB
+			// those identify category configuration providers, actually
+			// their category configs are serialized into dtdl schema XML
+			// they are uploaded to server with Utilities.setCategories method 
 			log(1, "Begin to ingest modified configurations into repo");
 			injestModifiedConfig();
 			log(0, "Done ingesting modified configurations");
@@ -2409,6 +2494,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 			/////////////////
 			// MODIFIED USERS
 			/////////////////
+			// generate XMl for users known as modified by DB
+			// send XML to server with overwrite flag set
+			// don't mind update conflict list returned by server, as overwrite flag is set
+			/////////////////
 			//log(1, "Begin to ingest modified user objects into repo");
 			injestModifiedUsers();
 			//log(0, "Done ingesting modified users into repo");
@@ -2428,6 +2517,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		try	{
 			//////////////////////
 			// MODIFIED REFERENCES
+			//////////////////////
+			// get XML from local DB
+			// send to server and save returned conflict list
 			//////////////////////
 			//log(1, "Begin to ingest modified reference objects into repo");
 			injestModifiedReferences(monitor);
@@ -2450,6 +2542,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 			///////////////////
 			// MODIFIED PERSONS
 			///////////////////
+			// get XMl from DB, remove ns prefixes
+			// send to server, save update conflict list
+			///////////////////
 			//log(1, "Begin to ingest modified person objects into repo");
 			injestModifiedPersons(monitor);
 			//log(0, "Done ingesting modified person objects");
@@ -2471,6 +2566,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			///////////////////
 			// MODIFIED ASPECTS
 			///////////////////
+			// does the same as injestmodifiedpersons, but with aspects
+			///////////////////
 			//log(1, "Begin to ingest modified aspects into repo");
 			injestModifiedAspects(monitor);
 			//log(0, "Done ingesting modified aspects into repo");
@@ -2490,12 +2587,22 @@ public class RepositoryUpdateManager implements IUpdateManager
 		////////////////////
 		// CONFLICT HANDLING
 		////////////////////
+		// now we have three update conflict lists for the three object types for mods, podl, aodl
+		//
 		
 		if ((_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty())
 				|| (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty())
 				|| (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty()))
 		{
 			log(1, "Conflicts detected during ingest. Starting to resolve...");
+			// all conflicts reported by server during update of modified objects
+			// are being instantiated as PdrObjectsConflict with references
+			// to PDRObject instances for both the local and the remote objects
+			// remote object instance is being deserialized from XML returned by
+			// server.
+			// updateconflict dialog is openened, idservice is asked to clear update
+			// states, then insertobjectconflict method is called 3x, at last facade
+			// refreshes all its data
 			handleObjectsConflicts(monitor);
 		}
 		// injest process completed. clear update states
@@ -2516,7 +2623,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		/////////////////////
 		// GET REMOTE CHANGES
 		/////////////////////
-		
+		//
+		//
+		/////////////////////
 		
 		// get all new or modified data
 
@@ -2536,12 +2645,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Date lastUpdateLocal = _idService.getUpdateTimeStamp();
 		
 		
-		// push locally new, get ALL remote users and save them to local DB
+		// push locally new [XXX], get ALL remote users and save them to local DB
 		try	{
 			////////
 			// USERS
 			////////
-			updateUsers(userID, password, monitor);
+			updateUsers(userID, password, monitor); // TODO log attempt utilities getObjects
 			statuses.put("update remote user modifications", true);
 		} catch (Exception e) {
 			log(2, "Synchronization of local and remote user obejcts failed: ", e);
@@ -2588,7 +2697,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				/////////////////////////////////////////////////////////
 				// einfach alle remote objekte rnuterladen und speichern?
 				/////////////////////////////////////////////////////////
-				updateAllOccupiedObjects(monitor);
+				updateAllOccupiedObjects(monitor); // TODO log attempt on utilities.getObjects
 				statuses.put("clone remote objects", true);
 			} catch (PDRAlliesClientException e) {
 				updateStatus = Status.CANCEL_STATUS;
@@ -2650,25 +2759,28 @@ public class RepositoryUpdateManager implements IUpdateManager
 		referenceRanges = Utilities.getOccupiedObjectIDRanges(PDRType.REFERENCE, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
 		// calculate total work
 		if (personRanges != null && !personRanges.isEmpty()) { 
-			log(0, "Occupied global ID ranges for podl:");
+			String logmsg="";
 			for (IDRange range : personRanges) {
-				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
+				logmsg += "\n"+range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound();
 				totalPersons = totalPersons + range.getUpperBound() - range.getLowerBound() + 1;
 			}
+			log(0, "Occupied global ID ranges for podl: "+logmsg);
 		}
 		if (aspectRanges != null && !aspectRanges.isEmpty()) {
-			log(0, "Occupied global ID ranges for aodl:");
+			String logmsg="";
 			for (IDRange range : aspectRanges)	{
-				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
+				logmsg += "\n"+range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound();
 				totalAspects = totalAspects + range.getUpperBound() - range.getLowerBound() + 1;
 			}
+			log(0, "Occupied global ID ranges for aodl:"+logmsg);
 		}
 		if (referenceRanges != null && !referenceRanges.isEmpty()) {
-			log(0, "Occupied global ID ranges for rodl mods:");
+			String logmsg="";
 			for (IDRange range : referenceRanges) {
-				System.out.println(range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound());
+				logmsg+="\n"+range.getType().toString()+" ID range from "+range.getLowerBound()+" to "+range.getUpperBound();
 				totalReferences = totalReferences + range.getUpperBound() - range.getLowerBound() + 1;
 			}
+			log(0, "Occupied global ID ranges for rodl mods: "+logmsg);
 		}
 		totalWork = totalPersons + totalAspects + totalReferences;
 		monitor.beginTask("Updating from Repository. Number of Objects: " + totalWork, totalWork);
@@ -2680,36 +2792,42 @@ public class RepositoryUpdateManager implements IUpdateManager
 		int upperBound = 0; // fixes issue #3949, where only person object in repo had id=1
 		synchronized (_dbCon) {
 			_dbCon.openCollection(col);
-			String msg = "Start downloading "+totalPersons+" person objects in "+personRanges.size()+" id ranges..";
-			for (IDRange range : personRanges) {
-				msg += "\n persons range " + range.getLowerBound() + " upper bound " + range.getUpperBound()+"";
-				lowerBound = range.getLowerBound();
-
-				while (upperBound < range.getUpperBound()) {
-					if (range.getUpperBound() - lowerBound <= PACKAGE_SIZE)	{
-						upperBound = range.getUpperBound();
-					}
-					else
-					{
-						upperBound = lowerBound + PACKAGE_SIZE;
-					}
-					monitor.subTask("Updating " + totalPersons + " Persons from Repository " + upperBound);
-					Vector<String> objs = Utilities.getObjects(PDRType.PERSON, _repositoryId, _projectId, lowerBound,
-							upperBound);
-					for (String s : objs)
-					{
-						name = extractPdrId(s) + ".xml";
-						_dbCon.storeQuick2DB(s, col, name);
-						s = null;
-						monitor.worked(1);
-					}
-					counter += objs.size();
-					lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX wieso 250?
-					if (monitor.isCanceled())
-					{
-						return Status.CANCEL_STATUS;
+			String msg = "Remote confirmation of "+totalPersons+" person objects in "+personRanges.size()+" id ranges..";
+			if (!personRanges.isEmpty()) try {
+				for (IDRange range : personRanges) {
+					msg += "\n persons range " + range.getLowerBound() + " upper bound " + range.getUpperBound()+"";
+					lowerBound = range.getLowerBound();
+	
+					while (upperBound < range.getUpperBound()) {
+						if (range.getUpperBound() - lowerBound <= PACKAGE_SIZE)	{
+							upperBound = range.getUpperBound();
+						}
+						else
+						{
+							upperBound = lowerBound + PACKAGE_SIZE;
+						}
+						monitor.subTask("Updating " + totalPersons + " Persons from Repository " + upperBound);
+						Vector<String> objs = Utilities.getObjects(PDRType.PERSON, _repositoryId, _projectId, lowerBound,
+								upperBound); //XXX allies auth error
+						for (String s : objs)
+						{
+							name = extractPdrId(s) + ".xml";
+							_dbCon.storeQuick2DB(s, col, name);
+							s = null;
+							monitor.worked(1);
+						}
+						counter += objs.size();
+						lowerBound = Math.min(lowerBound + 250, range.getUpperBound()); // XXX wieso 250?
+						if (monitor.isCanceled())
+						{
+							return Status.CANCEL_STATUS;
+						}
 					}
 				}
+			} catch (Exception e) {
+				msg+="getObjects failed for person ID range "+lowerBound+"-"+upperBound+"\n";
+				msg+=e.getMessage()+"\n";
+				msg+=e.getStackTrace();
 			}
 			log(1, msg);
 			_dbCon.closeDB(col);
@@ -3034,24 +3152,23 @@ public class RepositoryUpdateManager implements IUpdateManager
 				AEConstants.PROJECT_ID, null);
 		String name;
 		Configuration.getInstance().setAxis2BaseURL(url.toString());
-		//FIXME nur als default
-		/*if (userID != null && password != null)	{
+		if (userID != null && password != null)	{
 			Configuration.getInstance().setPDRUser(userID, password);
-		} else */{
+		} else {
 			// anmelden als repository admin XXX warum projekt 2?
-			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp");
+			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp"); // XXX pdrAdmin funktioniert nicht auf musmig server
 			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		}
 		log(1, "Log in remote repo as: "+Configuration.getInstance().getPDRUserID());
 
 		// push all users locally identified as NEW to remote repo
-		injestNewUsers(userID, password);
+		injestNewUsers(userID, password); // XXX ist doch quatsch haben wir doch schon gemacht
 		
 		// retrieve remote repo user ID ranges 
 		List<IDRange> ranges = Utilities.getOccupiedObjectIDRanges(PDRType.USER, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
 		String col = "users";
-		int lowerBound = 1;
-		int upperBound = 1;
+		int lowerBound = 1; //XXX
+		int upperBound = 1; //XXX
 		synchronized (_dbCon) {
 			_dbCon.openCollection(col);
 			log(1, "Download remote repo user objects");
@@ -3068,7 +3185,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					// retrieve remote user objects
 					//try {
 					System.out.println("Download user objects in range");
-					Vector<String> objs = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, lowerBound,
+					Vector<String> objs = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, lowerBound, // XXX auth error as pdrAdmin. handle!
 							upperBound);
 					for (String s : objs) {
 						name = extractPdrId(s) + ".xml";
@@ -3091,7 +3208,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			_dbCon.openCollection(col);
 			_dbCon.closeDB(col);
 			_idService.clearUserUpdateStates();
-			Configuration.getInstance().setPDRUser(userID, password);
+			Configuration.getInstance().setPDRUser(userID, password); // XXX never called cause of pdrAdmin auth error above
 			log(1, "Logging into remote repo as "+Configuration.getInstance().getPDRUserID());
 		}
 		return null;
@@ -3266,8 +3383,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Collections.sort(standardUsers);
 		Vector<String> repoUsers = new Vector<String>(10);
 		// XXX wieso immer projekt nr 2?
+		// XXX kann man sich nicht drauf verlassen dasz es immer nen pdrAdmin mit dem pw gibt.
+		if (userId != null && password != null) {
+			Configuration.getInstance().setPDRUser(userId, password);
+		} else
+			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp"); // works
 		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".002.000000001", "pdrrdp");
-		Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp"); // works
 		//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		log(1, "Logging into remote as "+Configuration.getInstance().getPDRUserID());
 		try	{
@@ -3337,6 +3458,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					log(1, "Ingest "+injestUsers.size()+" standard users to remote");
 					try	{
 						// XXX persistente IDs werden nicht verarbeitet??? rueckgabe wird infach weggeschmissen?
+						// wohl weils standard user sind
 						//Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
 						Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, injestUsers);
 						for (Entry<Identifier, Identifier> mapping : idMap.entrySet())
@@ -3379,13 +3501,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 				AEConstants.PROJECT_ID, null);
 		String name;
 		Configuration.getInstance().setAxis2BaseURL(url.toString());
-		//FIXME nur als default
-		if (userID != null && password != null)
-		{
+		// 
+		if (userID != null && password != null)	{
 			Configuration.getInstance().setPDRUser(userID, password);
-		}
-		else
-		{
+		} else {
 			// fallback to pdrAdmin
 			// project ID not relevant in fallback user id? no. pdrAdmin exists only in project 001
 			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "."+String.format("%03d",_projectId)+".000000001", "pdrrdp");
