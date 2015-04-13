@@ -318,6 +318,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 	/**
 	 * Gets the modified aspects.
+	 * <p>Obtains a list of IDs of modified aspects from {@link PdrIdService},
+	 * looks up the corresponding XML serializations using {@link MainSearcher},
+	 * removes aodl ns prefixes and returns the results.</p>
 	 * @return the modified aspects
 	 * @throws XQException the xQ exception
 	 * @throws XMLStreamException the xML stream exception
@@ -1637,7 +1640,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 				// check for loops
 				if (dependents.contains(i)) {
-					System.out.println("Detected object dependency loop at object "+i);
+					log(2, "Detected object dependency loop at object "+i);
 					// return all new local objects, all these objects failed to be ingested
 					return newObjsIds;
 				}
@@ -2355,6 +2358,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// TODO wir muessen uns was ueberlegen falls keine user credentials zu haben sind. 
 		// manchmal geht user wechseln ja schief und dann muessen wir nochmal login dialog oeffnen oder so 
 		
+		// TODO bei modified objects sicherstellen dasz zwei revisions drinstehen, die letzte mit aktuellem zeitstempel
+		
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
 		_repositoryId = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "REPOSITORY_ID",
@@ -2488,7 +2493,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 
 		//////////////////////////
-		// injest midified objects
+		// ingest modified objects
 		//////////////////////////
 		try	{
 			/////////////////

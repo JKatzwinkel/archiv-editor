@@ -1373,21 +1373,25 @@ public class XMLProcessor implements XMLProcessorInterface
 		if (validationStm.getReference() != null) {
 			// XXX aodl schema actually does not limit references to only one per validationStm...
 			Reference ref = validationStm.getReference();
+			// <reference>
 			sElement = eventFactory.createStartElement(prefix, uri, "reference");
 
 			eventWriter.add(sElement);
 			if (ref.getInternal() != null)
 				eventWriter.add(eventFactory.createAttribute("internal", ref.getInternal()));
 
+			// @quality
 			if (ref.getQuality() != null) // XXX aodl schema does actually not require quality attribute, but rodl editor does...
 				eventWriter.add(eventFactory.createAttribute("quality", ref.getQuality()));
 
-			// XXX authority attribute is not even a part in aodl schema reference definition...!
-			// XXX but it is in podl schema!!!
-			if (ref.getAuthority() != null) {
-				eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
-			} else
-				eventWriter.add(eventFactory.createAttribute("authority", auth));
+			// authority attribute is not even a part in aodl schema reference definition...!
+			// but it is in podl schema!!!
+			// @authority - only if serializing Person object
+			if (pdrObject instanceof Person)
+				if (ref.getAuthority() != null) {
+					eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
+				} else
+					eventWriter.add(eventFactory.createAttribute("authority", auth));
 
 			// Create Content
 			if (ref.getSourceId() != null) {
