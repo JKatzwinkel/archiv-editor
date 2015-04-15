@@ -1177,8 +1177,8 @@ public class UpdateConflictDialog extends TitleAreaDialog
 			{
 				endIndex = size;
 			}
-			eventNumber.setText(NLMessages.getString("View_allTogether") + size + "Objects" + //$NON-NLS-1$ //$NON-NLS-2$
-					(startIndex + 1) + " - " + endIndex); //$NON-NLS-1$
+			eventNumber.setText(NLMessages.getString("View_allTogether")+" " + size + " Objects " + //$NON-NLS-1$ //$NON-NLS-2$
+					"(showing " + (startIndex + 1) + " - " + endIndex + ")"); //$NON-NLS-1$
 			if (size > 10)
 			{
 

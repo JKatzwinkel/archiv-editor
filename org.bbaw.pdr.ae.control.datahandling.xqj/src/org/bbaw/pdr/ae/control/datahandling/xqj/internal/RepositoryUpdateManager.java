@@ -358,80 +358,87 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * Save those classification categories to local DB.
 	 * @throws Exception
 	 */
-	private void getModifiedConfig() throws Exception {
+	private void getModifiedConfig(final IProgressMonitor monitor) throws Exception {
 		// XXX sollten wir hier nicht mal irgendwo ne exception werfen?
-		List<String> providers = null;
-		try {
-			log(1, "Attempt to retrieve remote category providers");
-			providers = Utilities.getCategoryProviders();
-			log(0, "Retrieved "+providers.size()+" category providers from repo");
-		} catch (Exception e2) {
-			log(2, "Retrieval of remote category providers failed: ", e2);
-		}
-		if (providers == null) {
-			log(1, "No category providers could be retrieved. Use local provider information instead.");
-			providers = new Vector<String>();
-			for (String provider :  _facade.getConfigs().keySet())
-				providers.add(provider);
-		}
-		for (String provider :  providers) {
-			String modifiedConfig = null;
+		synchronized (_dbCon) {
+			monitor.beginTask("Request list of remote classification providers", 1);
+			List<String> providers = null;
 			try {
-				log(1, "Try to retrieve remote categories configuration for provider "+provider);
-				modifiedConfig = Utilities.getCategories(provider);
-				if (modifiedConfig != null && modifiedConfig.trim().length() > 0
-						&& !modifiedConfig.contains("file not found")) {
-					SAXParserFactory factory = SAXParserFactory.newInstance();
-					ConfigManager configManager = new ConfigManager();
-					try {
-						log(1, "Set up XML and SAX processors for configuration element");
-						// init XML/SAX processors for category configuration element read-in
-						InputStream xmlInput = new ByteArrayInputStream(modifiedConfig.getBytes("UTF-8"));
-						SAXParser saxParser = factory.newSAXParser();
-						// XXX custom parser for configration elements
-						DataDescSaxHandler handler = new DataDescSaxHandler(configManager);
-						XMLReader reader = saxParser.getXMLReader();
+				log(1, "Attempt to retrieve remote category providers");
+				providers = Utilities.getCategoryProviders();
+				log(0, "Retrieved "+providers.size()+" category providers from repo");
+				monitor.worked(1);
+			} catch (Exception e2) {
+				log(2, "Retrieval of remote category providers failed: ", e2);
+			}
+			if (providers == null) {
+				log(1, "No category providers could be retrieved. Use local provider information instead.");
+				providers = new Vector<String>();
+				for (String provider :  _facade.getConfigs().keySet())
+					providers.add(provider);
+				monitor.worked(1);
+			}
+			monitor.beginTask("Synchronize local classification configurations", providers.size());
+			for (String provider :  providers) {
+				String modifiedConfig = null;
+				try {
+					log(1, "Try to retrieve remote categories configuration for provider "+provider);
+					monitor.subTask("Request classification configuration for provider "+provider);
+					modifiedConfig = Utilities.getCategories(provider);
+					if (modifiedConfig != null && modifiedConfig.trim().length() > 0
+							&& !modifiedConfig.contains("file not found")) {
+						SAXParserFactory factory = SAXParserFactory.newInstance();
+						ConfigManager configManager = new ConfigManager();
 						try {
-							log(1, "Initialize XML reader");
-							// Turn on validation
-							reader.setFeature("http://xml.org/sax/features/validation", true); //$NON-NLS-1$
-							// Ensure namespace processing is on (the default)
-							reader.setFeature("http://xml.org/sax/features/namespaces", true); //$NON-NLS-1$
-						} catch (Exception e) {
-							log(2, "Parser could not be initialized: ", e);
+							log(1, "Set up XML and SAX processors for configuration element");
+							// init XML/SAX processors for category configuration element read-in
+							InputStream xmlInput = new ByteArrayInputStream(modifiedConfig.getBytes("UTF-8"));
+							SAXParser saxParser = factory.newSAXParser();
+							// XXX custom parser for configration elements
+							DataDescSaxHandler handler = new DataDescSaxHandler(configManager);
+							XMLReader reader = saxParser.getXMLReader();
+							try {
+								log(1, "Initialize XML reader");
+								// Turn on validation
+								reader.setFeature("http://xml.org/sax/features/validation", true); //$NON-NLS-1$
+								// Ensure namespace processing is on (the default)
+								reader.setFeature("http://xml.org/sax/features/namespaces", true); //$NON-NLS-1$
+							} catch (Exception e) {
+								log(2, "Parser could not be initialized: ", e);
+							}
+	
+							log(1, "Parse XML serialization of modified configuration");
+							saxParser.parse(xmlInput, handler);
+						} catch (Throwable err)	{
+							log(2, "Import of category configuration object XML failed: ", err);
 						}
-
-						log(1, "Parse XML serialization of modified configuration");
-						saxParser.parse(xmlInput, handler);
-					} catch (Throwable err)	{
-						log(2, "Import of category configuration object XML failed: ", err);
+	
+						DatatypeDesc dtd = configManager.getDatatypeDesc();
+						if (dtd != null && dtd.isValid()) {
+							if (dtd.getProvider() != null
+									&& dtd.getProvider().equals(
+											Platform.getPreferencesService()
+													.getString(CommonActivator.PLUGIN_ID, "PRIMARY_SEMANTIC_PROVIDER",
+															AEConstants.CLASSIFICATION_AUTHORITY, null)))
+							{
+								// TODO: huh?
+							}
+							try	{
+								log(1, "Save configurations to local database");
+								_configManager.saveConfig(dtd);
+							} catch (Exception e)	{
+								log(2, "Saving configurations to local database failed: ", e);
+							}
+						}
 					}
-
-					DatatypeDesc dtd = configManager.getDatatypeDesc();
-					if (dtd != null && dtd.isValid()) {
-						if (dtd.getProvider() != null
-								&& dtd.getProvider().equals(
-										Platform.getPreferencesService()
-												.getString(CommonActivator.PLUGIN_ID, "PRIMARY_SEMANTIC_PROVIDER",
-														AEConstants.CLASSIFICATION_AUTHORITY, null)))
-						{
-							// TODO: huh?
-						}
-						try	{
-							log(1, "Save configurations to local database");
-							_configManager.saveConfig(dtd);
-						} catch (Exception e)	{
-							log(2, "Saving configurations to local database failed: ", e);
-						}
-					}
+					monitor.worked(1);
+				} catch (PDRAlliesClientException e1) {
+					log = new Status(2, Activator.PLUGIN_ID, "ALLIES Exception during remote configuration retrieval for provider "+provider, e1);
+					iLogger.log(log);
+					e1.printStackTrace();
 				}
-			} catch (PDRAlliesClientException e1) {
-				log = new Status(2, Activator.PLUGIN_ID, "ALLIES Exception during remote configuration retrieval for provider "+provider, e1);
-				iLogger.log(log);
-				e1.printStackTrace();
 			}
 		}
-
 	}
 
 	/**
@@ -788,7 +795,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (aspects.size() == 0)
 				return;
 			log(1, "Begin to ingest "+aspects.size()+" modified aspect objects from local DB into remote repo");
-			monitor.beginTask("Injesting Modified Aspects into Repository. Number of Objects: " + aspects.size(),
+			monitor.beginTask("Ingesting Modified Aspects into Repository. Number of Objects: " + aspects.size(),
 					aspects.size());
 
 			int counter = 0;
@@ -851,13 +858,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws PDRAlliesClientException the pDR allies client exception
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void injestModifiedConfig() throws Exception
+	private void injestModifiedConfig(final IProgressMonitor monitor) throws Exception
 	{
 		synchronized (_dbCon)
 		{
 			Vector<String> configProviders = _idService.getModifiedConfigs();
 			// Vector<String> configs =
 			// _configManager.getConfigs(configProviders);
+			monitor.beginTask("Uploading local modifications to classification configurations. Number of Classification Providers: "+configProviders.size(), configProviders.size());
 			// XXX anpassen
 			for (String s : configProviders)
 			{
@@ -866,6 +874,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				String configStr = new ConfigXMLProcessor().writeToXML(dtd);
 				// System.out.println("injestModifiedConfig() " + configStr);
 				Utilities.setCategories(configStr, dtd.getProvider());
+				monitor.worked(1);
 
 			}
 		}
@@ -895,7 +904,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (persons.size() == 0)
 				return;
 			log(1, "Begin to ingest "+persons.size()+" modified person objects from local DB");
-			monitor.beginTask("Injesting Modified Persons into Repository. Number of Objects: " + persons.size(),
+			monitor.beginTask("Ingesting Modified Persons into Repository. Number of Objects: " + persons.size(),
 					persons.size());
 
 			int counter = 0;
@@ -972,7 +981,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (references.size() == 0)
 				return;
 			log(1, "Loaded "+references.size()+" modified reference objects from local DB");
-			monitor.beginTask("Injesting Modified References into Repository. Number of Objects: " + references.size(),
+			monitor.beginTask("Ingesting Modified References into Repository. Number of Objects: " + references.size(),
 					references.size());
 
 			int counter = 0;
@@ -1542,6 +1551,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	/** TODO matcher for person object XML */
 	static private String pdrPersonLinkTags = "(<concurrence[^>]*person=\"|<reference[^>]*>)";
 	static private Pattern pdrPersonLinkPattern = Pattern.compile(pdrPersonLinkTags+"(pdr[APRU]o\\.\\d{3}\\.\\d{3}\\.1\\d{8})");
+	// TODO: aspect can be aspect_of of another aspect
 
 	/**
 	 * Searches XML string for references to other new local objects. Matched relations are
@@ -1706,6 +1716,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 							resetObjectId(idMapping.getKey(), idMapping.getValue().toString(), 
 									3-pdrTypes.indexOf(pdrType));
 							counter ++;
+							monitor.worked(1);
 						}
 						log(0, "Ingested "+counter+"/"+packet.size()+" "+pdrType+" new local objects.");
 						// on success, remember persistent object id returned by server, (try to avoid using checkModifiedIds) 
@@ -1748,7 +1759,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (references.size() == 0)
 				return;
 			log(1, "Begin ingest of "+references.size()+" NEW reference objects from local DB into remote repo");
-			monitor.beginTask("Injesting new References into Repository. Number of Objects: " + references.size(),
+			monitor.beginTask("Ingesting new References into Repository. Number of Objects: " + references.size(),
 					references.size());
 	
 			int counter = 0;
@@ -1843,7 +1854,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (persons.size() == 0)
 				return;
 			log(1, "Begin ingest of "+persons.size()+" NEW person objects from local DB into remote repo");
-			monitor.beginTask("Injesting new Persons into Repository. Number of Objects: " + persons.size(),
+			monitor.beginTask("Ingesting new Persons into Repository. Number of Objects: " + persons.size(),
 					persons.size());
 
 			int counter = 0;
@@ -1925,7 +1936,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			if (aspects.size() == 0)
 				return;
 			log(1, "Begin ingest of "+aspects.size()+" NEW aspect objects from local DB into remote repo");
-			monitor.beginTask("Injesting new Aspects into Repository. Number of Objects: " + aspects.size(),
+			monitor.beginTask("Ingesting new Aspects into Repository. Number of Objects: " + aspects.size(),
 					aspects.size());
 	
 			int counter = 0;
@@ -2406,7 +2417,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		
 		// new project, local user still does not yet exist in repository
-		// XXX kann wahrscheinlich komplett weg, niemand sagt dasz das repo nen pdrAdmin mit dem pw hat (siehe musmig)
+/*		// XXX kann wahrscheinlich komplett weg, niemand sagt dasz das repo nen pdrAdmin mit dem pw hat (siehe musmig)
 		if (!success) {
 			//use pdrAdmin user to injest new users.
 			log(IStatus.INFO, "New project; authenticate as pdrAdmin", null);
@@ -2430,7 +2441,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log(1, "Reset credentials for repo auth: "+userID+":"+password, null);
 			Configuration.getInstance().setPDRUser(userID, password);
 
-		}
+		}*/
 		
 		
 		try {
@@ -2478,7 +2489,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// their category configs are serialized into dtdl schema XML
 			// they are uploaded to server with Utilities.setCategories method 
 			log(1, "Begin to ingest modified configurations into repo");
-			injestModifiedConfig();
+			injestModifiedConfig(monitor);
 			log(0, "Done ingesting modified configurations");
 			statuses.put("update modified configs", true);
 		} catch (PDRAlliesClientException e1) {
@@ -2636,7 +2647,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 		// XXX neue oder modifizierte configs holen
 		try	{
-			getModifiedConfig();
+			getModifiedConfig(monitor);
 			statuses.put("update remote configs modifications", true);
 		} catch (PDRAlliesClientException e1) {
 			updateStatus = Status.CANCEL_STATUS;
@@ -2678,8 +2689,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 		
 		// XXX ist es ein problem, hier schon den timestamp des laufenden updates zu bestimmen?
-		log(1, "Local DB:\nSaved Timestamp of most recent repo update:\n"+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)+
-				"established timestamp of currently running update:\n" + AEConstants.ADMINDATE_FORMAT.format(currentUpdate));
+		log(1, "Local DB:\nSaved Timestamp of most recent repo update: "+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)+"\n"
+				+"established timestamp of currently running update: " + AEConstants.ADMINDATE_FORMAT.format(currentUpdate));
 
 		// wenn letztes update der lokalen instanz nach 2011 war, also glaubwuerdig ist:
 		if (lastUpdateLocal.after(AEConstants.FIRST_EVER_UPDATE_TIMESTAMP)) {
