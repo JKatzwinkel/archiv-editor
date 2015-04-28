@@ -2822,7 +2822,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						{
 							upperBound = lowerBound + PACKAGE_SIZE;
 						}
-						monitor.subTask("Updating " + totalPersons + " Persons from Repository " + upperBound);
+						monitor.subTask("Updating " + totalPersons + " Persons from Repository... [Range " + lowerBound+"-"+upperBound+"]");
 						Vector<String> objs = Utilities.getObjects(PDRType.PERSON, _repositoryId, _projectId, lowerBound,
 								upperBound); //XXX allies auth error
 						for (String s : objs)
@@ -2889,7 +2889,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					{
 						upperBound = lowerBound + PACKAGE_SIZE;
 					}
-					monitor.subTask("Updating " + totalAspects + " Aspects from Repository " + upperBound);
+					monitor.subTask("Updating " + totalAspects + " Aspects from Repository... [Range "+lowerBound+"-" + upperBound+"]");
 
 					Vector<String> objs = Utilities.getObjects(PDRType.ASPECT, _repositoryId, _projectId, lowerBound,
 							upperBound);
@@ -2956,7 +2956,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 			{
 				msg += "\n references range " + range.getLowerBound()+ " upper bound " + range.getUpperBound();
 				lowerBound = range.getLowerBound();
-				monitor.subTask("Updating " + totalReferences + " References from Repository " + lowerBound);
 
 				while (upperBound < range.getUpperBound())
 				{
@@ -2968,6 +2967,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					{
 						upperBound = lowerBound + PACKAGE_SIZE;
 					}
+					monitor.subTask("Updating " + totalReferences + " References from Repository... [Range " + lowerBound+"-"+upperBound+"]");
 					Vector<String> objs = Utilities.getObjects(PDRType.REFERENCE, _repositoryId, _projectId,
 							lowerBound, upperBound);
 					for (String s : objs)

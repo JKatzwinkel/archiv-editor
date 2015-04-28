@@ -219,7 +219,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	private Vector<XMLEvent> createNode(final XMLEventWriter eventWriter, final String name, final Identifier i)
 			throws XMLStreamException
 	{
-		Vector<XMLEvent> idXmlEvs = new Vector<>();
+		Vector<XMLEvent> idXmlEvs = new Vector<XMLEvent>();
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement("podl", "http://pdr.bbaw.de/namespaces/podl/", name);
@@ -1186,13 +1186,13 @@ public class XMLProcessor implements XMLProcessorInterface
 	}
 
 	/**
-	 * Creates the node.
+	 * Writes an XML element representing an {@link Aspect}'s {@link SpatialStm} .
 	 * @param eventWriter the event writer
 	 * @param name the name
 	 * @param spaStm the spatial Statement
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final SpatialStm spaStm)
+	private void createSpatialStmNode(final XMLEventWriter eventWriter, final String name, final SpatialStm spaStm)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1711,7 +1711,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		// timeStms anymore. Also, we don't need more than one dummy element.
 		// therefore, we count the number of proper timeStms and then decide if we will serialize the dummy nodes
 		TimeDim timeDim = a.getTimeDim();
-		Vector<TimeStm> timeStms = new Vector<>();
+		Vector<TimeStm> timeStms = new Vector<TimeStm>();
 		if (timeDim != null && timeDim.getTimeStms() != null) 
 			for (TimeStm timeStm : timeDim.getTimeStms()) 
 				// assumption: only non-empty list of <time> sub elements constitutes valid non-empty timeStm element
@@ -1735,7 +1735,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		// same here: satisfy aodl schema by writing at least one spatialStm elements, (empty if none is available)
 		// but not more than one dummy node
 		SpatialDim spatialDim = a.getSpatialDim();
-		Vector<SpatialStm> spatialStms = new Vector<>();
+		Vector<SpatialStm> spatialStms = new Vector<SpatialStm>();
 		if (spatialDim != null && spatialDim.getSpatialStms() != null)
 			for (SpatialStm spatialStm : spatialDim.getSpatialStms())
 				// TODO: does anything apart from this constitute a proper spatialStm?
@@ -1747,7 +1747,7 @@ public class XMLProcessor implements XMLProcessorInterface
 			spatialStms.add(spatialStm);
 		}
 		for (SpatialStm spatialStm : spatialStms)
-			createNode(eventWriter, "spatialStm", spatialStm);
+			createSpatialStmNode(eventWriter, "spatialStm", spatialStm);
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "spatialDim"));
 		// </spatialDim>
 
