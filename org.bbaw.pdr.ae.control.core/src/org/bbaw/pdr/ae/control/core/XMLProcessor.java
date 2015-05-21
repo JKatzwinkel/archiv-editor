@@ -149,7 +149,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param d the documentation
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final HashMap<String, String> d)
+	private void createModsTemplateDocumentationNode(final XMLEventWriter eventWriter, final String name, final HashMap<String, String> d)
 			throws XMLStreamException
 	{
 
@@ -164,11 +164,11 @@ public class XMLProcessor implements XMLProcessorInterface
 		for (String str : d.keySet())
 		{
 
-			createNode(eventWriter, "docPart", d.get(str), str);
+			createModsTemplateDocPartNode(eventWriter, "docPart", d.get(str), str);
 		}
 		if (d.isEmpty())
 		{
-			createNode(eventWriter, "docPart", "", "de");
+			createModsTemplateDocPartNode(eventWriter, "docPart", "", "de");
 
 		}
 		eventWriter.add(eventFactory.createEndElement("", "", name));
@@ -216,7 +216,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param i the identifier
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private Vector<XMLEvent> createNode(final XMLEventWriter eventWriter, final String name, final Identifier i)
+	private Vector<XMLEvent> createPersonIdentifierNodes(final XMLEventWriter eventWriter, final String name, final Identifier i)
 			throws XMLStreamException
 	{
 		Vector<XMLEvent> idXmlEvs = new Vector<XMLEvent>();
@@ -264,7 +264,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param uri the uri
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final NameMods nameMods,
+	private void createModsNameNode(final XMLEventWriter eventWriter, final String name, final NameMods nameMods,
 			final String prefix, final String uri) throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -365,7 +365,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param uri the uri
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final OriginInfo originInfo,
+	private void createModsOriginInfoNode(final XMLEventWriter eventWriter, final String name, final OriginInfo originInfo,
 			final String prefix, final String uri) throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -614,7 +614,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param uri the uri
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final PartMods part,
+	private void createModsRelatedItemNode(final XMLEventWriter eventWriter, final String name, final PartMods part,
 			final String prefix, final String uri) throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -725,7 +725,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param place the place
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final Place place)
+	private void createAspectPlaceNode(final XMLEventWriter eventWriter, final String name, final Place place)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -770,7 +770,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param uri the uri
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final ReferenceMods r,
+	private void createModsNode(final XMLEventWriter eventWriter, final String name, final ReferenceMods r,
 			final String prefix, final String uri) throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -802,23 +802,23 @@ public class XMLProcessor implements XMLProcessorInterface
 			if (r.getTitleInfo() != null && r.getTitleInfo().getTitle() != null)
 			{
 
-				createNode(eventWriter, "title", r.getTitleInfo().getTitle(), prefix, uri);
+				createModsTitleInfoNode(eventWriter, "title", r.getTitleInfo().getTitle(), prefix, uri);
 
 			}
 			if (r.getTitleInfo() != null && r.getTitleInfo().getSubTitle() != null)
 			{
 
-				createNode(eventWriter, "subTitle", r.getTitleInfo().getSubTitle(), prefix, uri);
+				createModsTitleInfoNode(eventWriter, "subTitle", r.getTitleInfo().getSubTitle(), prefix, uri);
 
 			}
 			if (r.getTitleInfo() != null && r.getTitleInfo().getPartNumber() != null)
 			{
-				createNode(eventWriter, "partNumber", r.getTitleInfo().getPartNumber(), prefix, uri);
+				createModsTitleInfoNode(eventWriter, "partNumber", r.getTitleInfo().getPartNumber(), prefix, uri);
 
 			}
 			if (r.getTitleInfo() != null && r.getTitleInfo().getPartName() != null)
 			{
-				createNode(eventWriter, "partName", r.getTitleInfo().getPartName(), prefix, uri);
+				createModsTitleInfoNode(eventWriter, "partName", r.getTitleInfo().getPartName(), prefix, uri);
 
 			}
 
@@ -829,7 +829,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		{
 			for (int i = 0; i < r.getNameMods().size(); i++)
 			{
-				createNode(eventWriter, "name", r.getNameMods().get(i), prefix, uri);
+				createModsNameNode(eventWriter, "name", r.getNameMods().get(i), prefix, uri);
 			}
 		}
 
@@ -850,7 +850,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 		if (r.getOriginInfo() != null)
 		{
-			createNode(eventWriter, "originInfo", r.getOriginInfo(), prefix, uri);
+			createModsOriginInfoNode(eventWriter, "originInfo", r.getOriginInfo(), prefix, uri);
 		}
 
 		if (r.getNote() != null)
@@ -963,16 +963,16 @@ public class XMLProcessor implements XMLProcessorInterface
 				startElement = eventFactory.createStartElement(prefix, uri, "titleInfo");
 				eventWriter.add(startElement);
 
-				createNode(eventWriter, "title", r.getSeriesTitleInfo().getTitle(), prefix, uri);
+				createModsTitleInfoNode(eventWriter, "title", r.getSeriesTitleInfo().getTitle(), prefix, uri);
 
 				if (r.getSeriesTitleInfo().getSubTitle() != null)
-					createNode(eventWriter, "subTitle", r.getSeriesTitleInfo().getSubTitle(), prefix, uri);
+					createModsTitleInfoNode(eventWriter, "subTitle", r.getSeriesTitleInfo().getSubTitle(), prefix, uri);
 
 				if (r.getSeriesTitleInfo().getPartNumber() != null)
-					createNode(eventWriter, "partNumber", r.getSeriesTitleInfo().getPartNumber(), prefix, uri);
+					createModsTitleInfoNode(eventWriter, "partNumber", r.getSeriesTitleInfo().getPartNumber(), prefix, uri);
 
 				if (r.getSeriesTitleInfo().getPartName() != null)
-					createNode(eventWriter, "partName", r.getSeriesTitleInfo().getPartName(), prefix, uri);
+					createModsTitleInfoNode(eventWriter, "partName", r.getSeriesTitleInfo().getPartName(), prefix, uri);
 
 
 				eventWriter.add(eventFactory.createEndElement(prefix, uri, "titleInfo"));
@@ -998,7 +998,7 @@ public class XMLProcessor implements XMLProcessorInterface
 				}
 				if (relItem.getPart() != null)
 				{
-					createNode(eventWriter, "part", relItem.getPart(), prefix, uri);
+					createModsRelatedItemNode(eventWriter, "part", relItem.getPart(), prefix, uri);
 				}
 				
 
@@ -1026,7 +1026,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param relationStm 
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private Vector<XMLEvent> createNode(final XMLEventWriter eventWriter, final String name, final Relation relation, RelationStm relationStm)
+	private Vector<XMLEvent> createAspectRelationNode(final XMLEventWriter eventWriter, final String name, final Relation relation, RelationStm relationStm)
 			throws XMLStreamException
 	{
 		// assemble xml event list, but don't write it to stream yet,
@@ -1080,7 +1080,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param relStm the relationStatement
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final RelationStm relStm)
+	private void createAspectRelationStmNode(final XMLEventWriter eventWriter, final String name, final RelationStm relStm)
 			throws XMLStreamException
 	{
 		// queue xml events up before writing to stream, in case
@@ -1094,7 +1094,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		relStmXmlEvents.add(sElement);
 		
 		if (relStm.getSubject() == null) {
-			buflog("Aodl Model violation: relationStm without subject attribute!");
+			buflog("aodl schema violation: relationStm without subject attribute!");
 		} else
 			relStmXmlEvents.add(eventFactory.createAttribute("subject", relStm.getSubject().toString()));
 	
@@ -1102,7 +1102,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		if (relStm.getRelations() != null) {
 			// queue up sub element xml events separately
 			for (Relation rel : relStm.getRelations()) {
-				Vector<XMLEvent> relXmlElements =  createNode(eventWriter, "relation", rel, relStm);
+				Vector<XMLEvent> relXmlElements = createAspectRelationNode(eventWriter, "relation", rel, relStm);
 				if (relXmlElements != null) // 
 					relStmXmlEvents.addAll(relXmlElements);
 			}
@@ -1127,7 +1127,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param uri the uri
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final Revision r, final String prefix,
+	private void createPDRObjectRelationNode(final XMLEventWriter eventWriter, final String name, final Revision r, final String prefix,
 			final String uri) throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1158,7 +1158,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param semStm the semantic Statement
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final SemanticStm semStm)
+	private void createAspectSemanticStmNode(final XMLEventWriter eventWriter, final String name, final SemanticStm semStm)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1214,7 +1214,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		{
 			for (int j = 0; j < spaStm.getPlaces().size(); j++)
 			{
-				createNode(eventWriter, "place", spaStm.getPlaces().get(j));
+				createAspectPlaceNode(eventWriter, "place", spaStm.getPlaces().get(j));
 
 			}
 
@@ -1234,7 +1234,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param lang the lang
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final String value, final String lang)
+	private void createModsTemplateDocPartNode(final XMLEventWriter eventWriter, final String name, final String value, final String lang)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1256,15 +1256,15 @@ public class XMLProcessor implements XMLProcessorInterface
 	}
 
 	/**
-	 * Creates the node.
+	 * Creates a sub node of a MODS titleInfo element.
 	 * @param eventWriter the event writer
-	 * @param name the name
+	 * @param name e.g. 'subTitle', 'title', 'partNumber'...
 	 * @param text the text
 	 * @param prefix the prefix
 	 * @param uri the uri
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final String text,
+	private void createModsTitleInfoNode(final XMLEventWriter eventWriter, final String name, final String text,
 			final String prefix, final String uri) throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1286,7 +1286,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param tStm the time Statement
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final String name, final TimeStm tStm)
+	private void createAspectTimeStmNode(final XMLEventWriter eventWriter, final String name, final TimeStm tStm)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1429,7 +1429,7 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * @param text the text
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createNode(final XMLEventWriter eventWriter, final TaggingRange tr, String text)
+	private void createAspectMarkupNode(final XMLEventWriter eventWriter, final TaggingRange tr, String text)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1695,7 +1695,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		for (int i = 0; i < a.getRecord().getRevisions().size(); i++)
 		{
 
-			createNode(eventWriter, "revision", a.getRecord().getRevisions().get(i), "aodl",
+			createPDRObjectRelationNode(eventWriter, "revision", a.getRecord().getRevisions().get(i), "aodl",
 					"http://pdr.bbaw.de/namespaces/aodl/");
 		}
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "record"));
@@ -1724,7 +1724,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		}
 		// write timeStm nodes
 		for (TimeStm timeStm : timeStms)
-			createNode(eventWriter, "timeStm", timeStm);
+			createAspectTimeStmNode(eventWriter, "timeStm", timeStm);
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "timeDim"));
 		// </timeDim>
 
@@ -1763,7 +1763,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 			{
 
-				createNode(eventWriter, "relationStm", a.getRelationDim().getRelationStms().get(i));
+				createAspectRelationStmNode(eventWriter, "relationStm", a.getRelationDim().getRelationStms().get(i));
 			}
 		}
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "relationDim"));
@@ -1781,7 +1781,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 				if (a.getSemanticDim().getSemanticStms().get(i) != null)
 				{
-					createNode(eventWriter, "semanticStm", a.getSemanticDim().getSemanticStms().get(i));
+					createAspectSemanticStmNode(eventWriter, "semanticStm", a.getSemanticDim().getSemanticStms().get(i));
 				}
 			}
 		}
@@ -1810,7 +1810,7 @@ public class XMLProcessor implements XMLProcessorInterface
 					String subText = a.getNotification().substring(start, a.getRangeList().get(i).getStart());
 					processAppendTextWithLineBreaks(eventWriter, subText);
 
-					createNode(eventWriter, a.getRangeList().get(i), a.getNotification());
+					createAspectMarkupNode(eventWriter, a.getRangeList().get(i), a.getNotification());
 					start = a.getRangeList().get(i).getStart() + a.getRangeList().get(i).getLength();
 				}
 			}
@@ -1940,7 +1940,7 @@ public class XMLProcessor implements XMLProcessorInterface
 			for (int i = 0; i < p.getRecord().getRevisions().size(); i++)
 			{
 
-				createNode(eventWriter, "revision", p.getRecord().getRevisions().get(i), "podl",
+				createPDRObjectRelationNode(eventWriter, "revision", p.getRecord().getRevisions().get(i), "podl",
 						"http://pdr.bbaw.de/namespaces/podl/");
 			}
 			eventWriter.add(eventFactory.createEndElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "record"));
@@ -1952,7 +1952,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 			if (p.getIdentifiers().getIdentifiers() != null)
 				for (Identifier i : p.getIdentifiers().getIdentifiers()){
-					Vector<XMLEvent> idnXmlEvs = createNode(eventWriter, "identifier", i);
+					Vector<XMLEvent> idnXmlEvs = createPersonIdentifierNodes(eventWriter, "identifier", i);
 					if (idnXmlEvs != null)
 						idnsXmlEvs.addAll(idnXmlEvs);
 				}
@@ -2031,8 +2031,8 @@ public class XMLProcessor implements XMLProcessorInterface
 		StartDocument startDocument = eventFactory.createStartDocument();
 		eventWriter.add(startDocument);
 
-
-		createNode(eventWriter, "mods", r, "mods", _modsUri);
+		// write mods node
+		createModsNode(eventWriter, "mods", r, "mods", _modsUri);
 
 		eventWriter.add(eventFactory.createEndDocument());
 		eventWriter.close();
@@ -2099,12 +2099,12 @@ public class XMLProcessor implements XMLProcessorInterface
 		}
 		if (template.getDocumentation() != null)
 		{
-			createNode(eventWriter, "documentation", template.getDocumentation());
+			createModsTemplateDocumentationNode(eventWriter, "documentation", template.getDocumentation());
 		}
 
 		if (template.getRefTemplate() != null)
 		{
-			createNode(eventWriter, "mods", template.getRefTemplate(), "", "");
+			createModsNode(eventWriter, "mods", template.getRefTemplate(), "", "");
 		}
 
 		// Write the different nodes
