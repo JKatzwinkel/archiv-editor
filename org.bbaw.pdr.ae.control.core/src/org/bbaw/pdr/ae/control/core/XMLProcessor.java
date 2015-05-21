@@ -107,6 +107,120 @@ public class XMLProcessor implements XMLProcessorInterface
 	
 	
 	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param validationStm the validation statement
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @param pdrObject 
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createValidationStmNode(final XMLEventWriter eventWriter, final String name, final ValidationStm validationStm,
+			final String prefix, final String uri, PdrMetaObject pdrObject) throws XMLStreamException
+	{
+		// create validationStm element
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
+		
+		eventWriter.add(sElement);
+		String auth = null;
+		if (validationStm.getAuthority() == null) {
+			buflog("Aodl warning: validationStm without authority. falling back to revision authority");  
+			// XXX: first or last revision?
+			auth = pdrObject.getRecord().getRevisions().get(0).getAuthority().toString();
+		} else 
+			auth = validationStm.getAuthority().toString();
+		eventWriter.add(eventFactory.createAttribute("authority", auth));
+	
+	
+		if (validationStm.getReference() != null) {
+			// XXX aodl schema actually does not limit references to only one per validationStm...
+			Reference ref = validationStm.getReference();
+			// <reference>
+			sElement = eventFactory.createStartElement(prefix, uri, "reference");
+	
+			eventWriter.add(sElement);
+			if (ref.getInternal() != null)
+				eventWriter.add(eventFactory.createAttribute("internal", ref.getInternal()));
+	
+			// @quality
+			if (ref.getQuality() != null) // XXX aodl schema does actually not require quality attribute, but rodl editor does...
+				eventWriter.add(eventFactory.createAttribute("quality", ref.getQuality()));
+	
+			// authority attribute is not even a part in aodl schema reference definition...!
+			// but it is in podl schema!!!
+			// @authority - only if serializing Person object
+			if (pdrObject instanceof Person)
+				if (ref.getAuthority() != null) {
+					eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
+				} else
+					eventWriter.add(eventFactory.createAttribute("authority", auth));
+	
+			// Create Content
+			if (ref.getSourceId() != null) {
+				Characters characters = eventFactory.createCharacters(ref.getSourceId().toString());
+				eventWriter.add(characters);
+			} else 
+				buflog("Aodl violation: no source Id in reference elements!");
+			
+			EndElement eElement = eventFactory.createEndElement(prefix, uri, "reference");
+			eventWriter.add(eElement);
+		}
+	
+		sElement = eventFactory.createStartElement(prefix, uri, "interpretation");
+		eventWriter.add(sElement);
+	
+		if (validationStm.getInterpretation() != null) {
+			Characters characters = eventFactory.createCharacters(validationStm.getInterpretation());
+			eventWriter.add(characters);
+		}
+		EndElement eElement = eventFactory.createEndElement(prefix, uri, "interpretation");
+		eventWriter.add(eElement);
+	
+	
+		// Create End node
+		eElement = eventFactory.createEndElement(prefix, uri, name);
+		eventWriter.add(eElement);
+	
+	
+	}
+
+	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param r the revision
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createPDRObjectRelationNode(final XMLEventWriter eventWriter, final String name, final Revision r, final String prefix,
+			final String uri) throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
+	
+		eventWriter.add(sElement);
+		eventWriter.add(eventFactory.createAttribute("ref", new Integer(r.getRef()).toString()));
+		eventWriter
+				.add(eventFactory.createAttribute("timestamp", _adminDateFormat.format(r.getTimeStamp()).toString()));
+		eventWriter.add(eventFactory.createAttribute("authority", r.getAuthority().toString()));
+		// TODO das Schema sieht keinen authority namen mehr vor, änderung im
+		// model umsetzen.
+		// // Create Content
+		// Characters characters =
+		// eventFactory.createCharacters(r.getRevisor());
+		// eventWriter.add(characters);
+		// Create End node
+		EndElement eElement = eventFactory.createEndElement(prefix, uri, name);
+		eventWriter.add(eElement);
+	
+	}
+
+	/**
 	 * Creates {@link Concurrence} node.
 	 * @param eventWriter the event writer
 	 * @param name the name of node
@@ -142,39 +256,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 	}
 
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param d the documentation
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createModsTemplateDocumentationNode(final XMLEventWriter eventWriter, final String name, final HashMap<String, String> d)
-			throws XMLStreamException
-	{
-
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement("", "", name);
-
-		eventWriter.add(sElement);
-		// FIXME nullpointer abfangen!!1
-
-
-		for (String str : d.keySet())
-		{
-
-			createModsTemplateDocPartNode(eventWriter, "docPart", d.get(str), str);
-		}
-		if (d.isEmpty())
-		{
-			createModsTemplateDocPartNode(eventWriter, "docPart", "", "de");
-
-		}
-		eventWriter.add(eventFactory.createEndElement("", "", name));
-
-
-	}
+	
 
 	// private void createNode(XMLEventWriter eventWriter, String name,
 	// Reference ref, String prefix, String uri) throws XMLStreamException {
@@ -251,512 +333,6 @@ public class XMLProcessor implements XMLProcessorInterface
 		idXmlEvs.add(eElement);
 		
 		return idXmlEvs;
-
-
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param nameMods the namemods object
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createModsNameNode(final XMLEventWriter eventWriter, final String name, final NameMods nameMods,
-			final String prefix, final String uri) throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement(prefix, uri, "name");
-		eventWriter.add(sElement);
-		if (nameMods.getType() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("type", nameMods.getType()));
-		}
-
-		for (int i = 0; i < nameMods.getNameParts().size(); i++)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "namePart");
-
-			eventWriter.add(sE);
-			if (nameMods.getNameParts().get(i).getType() != null)
-			{
-				eventWriter.add(eventFactory.createAttribute("type", nameMods.getNameParts().get(i).getType()));
-			}
-			Characters characters = eventFactory.createCharacters(nameMods.getNameParts().get(i).getNamePart());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "namePart"));
-
-		}
-		if (nameMods.getAffiliation() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "affiliation");
-
-			eventWriter.add(sE);
-
-			Characters characters = eventFactory.createCharacters(nameMods.getAffiliation());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "affiliation"));
-
-		}
-		if (nameMods.getRoleMods() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "role");
-
-			eventWriter.add(sE);
-
-			if (nameMods.getRoleMods().getRoleTerm() != null)
-			{
-				StartElement sE2 = eventFactory.createStartElement(prefix, uri, "roleTerm");
-
-
-				eventWriter.add(sE2);
-
-				if (nameMods.getRoleMods().getAuthority() != null)
-				{
-					eventWriter.add(eventFactory.createAttribute("authority", nameMods.getRoleMods().getAuthority()));
-				}
-				if (nameMods.getRoleMods().getType() != null)
-				{
-					eventWriter.add(eventFactory.createAttribute("type", nameMods.getRoleMods().getType()));
-				}
-
-				Characters characters = eventFactory.createCharacters(nameMods.getRoleMods().getRoleTerm());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "roleTerm"));
-
-			}
-
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "role"));
-
-		}
-
-		
-
-		if (nameMods.getDescription() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "description");
-
-			eventWriter.add(sE);
-
-			Characters characters = eventFactory.createCharacters(nameMods.getDescription());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "description"));
-
-		}
-		eventWriter.add(eventFactory.createEndElement(prefix, uri, "name"));
-
-
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param originInfo the origin info
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createModsOriginInfoNode(final XMLEventWriter eventWriter, final String name, final OriginInfo originInfo,
-			final String prefix, final String uri) throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
-
-		eventWriter.add(sElement);
-
-
-		if (originInfo.getDateCreated() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCreated");
-			eventWriter.add(sE);
-			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-
-			Characters characters = eventFactory.createCharacters(originInfo.getDateCreated().toString());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCreated"));
-
-		}
-		if (originInfo.getDateCreatedTimespan() != null)
-		{
-			if (originInfo.getDateCreatedTimespan().getDateFrom() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCreated");
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "start"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getDateCreatedTimespan().getDateFrom()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCreated"));
-
-			}
-			if (originInfo.getDateCreatedTimespan().getDateTo() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCreated");
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "end"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getDateCreatedTimespan().getDateTo()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCreated"));
-
-			}
-		}
-		if (originInfo.getDateIssued() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "dateIssued");
-			eventWriter.add(sE);
-			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-
-			Characters characters = eventFactory.createCharacters(originInfo.getDateIssued().toString());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateIssued"));
-
-		}
-		if (originInfo.getDateIssuedTimespan() != null)
-		{
-			if (originInfo.getDateIssuedTimespan().getDateFrom() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateIssued");
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "start"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getDateIssuedTimespan().getDateFrom()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateIssued"));
-
-			}
-			if (originInfo.getDateIssuedTimespan().getDateTo() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateIssued");
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "end"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getDateIssuedTimespan().getDateTo()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateIssued"));
-
-			}
-		}
-		if (originInfo.getDateCaptured() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCaptured");
-
-			eventWriter.add(sE);
-			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-
-			Characters characters = eventFactory.createCharacters(originInfo.getDateCaptured().toString());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCaptured"));
-
-		}
-		if (originInfo.getDateCapturedTimespan() != null)
-		{
-			if (originInfo.getDateCapturedTimespan().getDateFrom() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCaptured");
-
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "start"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getDateCapturedTimespan()
-						.getDateFrom().toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCaptured"));
-
-			}
-			if (originInfo.getDateCapturedTimespan().getDateTo() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCaptured");
-
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "end"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getDateCapturedTimespan().getDateTo()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCaptured"));
-
-			}
-		}
-		if (originInfo.getCopyrightDate() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "copyrightDate");
-
-			eventWriter.add(sE);
-			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-
-			Characters characters = eventFactory.createCharacters(originInfo.getCopyrightDate().toString());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "copyrightDate"));
-
-		}
-		if (originInfo.getCopyrightDateTimespan() != null)
-		{
-			if (originInfo.getCopyrightDateTimespan().getDateFrom() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "copyrightDate");
-
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "start"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getCopyrightDateTimespan()
-						.getDateFrom().toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "copyrightDate"));
-
-			}
-			if (originInfo.getCopyrightDateTimespan().getDateTo() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "copyrightDate");
-
-				eventWriter.add(sE);
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-				eventWriter.add(eventFactory.createAttribute("point", "end"));
-
-				Characters characters = eventFactory.createCharacters(originInfo.getCopyrightDateTimespan().getDateTo()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "copyrightDate"));
-
-			}
-		}
-
-		if (originInfo.getPublisher() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "publisher");
-
-			eventWriter.add(sE);
-
-			Characters characters = eventFactory.createCharacters(originInfo.getPublisher());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "publisher"));
-
-		}
-
-		if (originInfo.getPlaceTerm() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "place");
-
-			eventWriter.add(sE);
-
-
-			StartElement sE2 = eventFactory.createStartElement(prefix, uri, "placeTerm");
-
-
-			eventWriter.add(sE2);
-			eventWriter.add(eventFactory.createAttribute("type", originInfo.getPlaceType()));
-
-			Characters characters = eventFactory.createCharacters(originInfo.getPlaceTerm());
-			eventWriter.add(characters);
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "placeTerm"));
-
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "place"));
-
-		}
-		if (originInfo.getEdition() != null)
-		{
-			StartElement sE = eventFactory.createStartElement(prefix, uri, "edition");
-
-			eventWriter.add(sE);
-
-			Characters characters = eventFactory.createCharacters(originInfo.getEdition());
-			eventWriter.add(characters);
-
-			eventWriter.add(eventFactory.createEndElement(prefix, uri, "edition"));
-
-		}
-
-		eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
-
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param part the part
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createModsRelatedItemNode(final XMLEventWriter eventWriter, final String name, final PartMods part,
-			final String prefix, final String uri) throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement(prefix, uri, "part");
-		eventWriter.add(sElement);
-
-
-		if (part.getDetails() != null && !part.getDetails().isEmpty())
-		{
-			for (int i = 0; i < part.getDetails().size(); i++)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "detail");
-
-				eventWriter.add(sE);
-				if (part.getDetails().get(i).getType() != null)
-				{
-					eventWriter.add(eventFactory.createAttribute("type", part.getDetails().get(i).getType()));
-				}
-				if (part.getDetails().get(i).getNumber() != null)
-				{
-					sElement = eventFactory.createStartElement(prefix, uri, "number");
-					eventWriter.add(sElement);
-					Characters characters = eventFactory.createCharacters(part.getDetails().get(i).getNumber());
-					eventWriter.add(characters);
-
-					eventWriter.add(eventFactory.createEndElement(prefix, uri, "number"));
-
-
-				}
-				if (part.getDetails().get(i).getCaption() != null)
-				{
-					sElement = eventFactory.createStartElement(prefix, uri, "caption");
-					eventWriter.add(sElement);
-					Characters characters = eventFactory.createCharacters(part.getDetails().get(i).getCaption());
-					eventWriter.add(characters);
-
-					eventWriter.add(eventFactory.createEndElement(prefix, uri, "caption"));
-
-
-				}
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "detail"));
-
-			}
-		}
-		if (part.getExtendsMods() != null && !part.getExtendsMods().isEmpty())
-		{
-			for (int i = 0; i < part.getExtendsMods().size(); i++)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "extent");
-
-				eventWriter.add(sE);
-				if (part.getDetails().get(i).getType() != null)
-				{
-					eventWriter.add(eventFactory.createAttribute("unit", part.getExtendsMods().get(i).getUnit()));
-				}
-				if (part.getExtendsMods().get(i).getStart() != null)
-				{
-					sElement = eventFactory.createStartElement(prefix, uri, "start");
-					eventWriter.add(sElement);
-					Characters characters = eventFactory.createCharacters(part.getExtendsMods().get(i).getStart());
-					eventWriter.add(characters);
-
-					eventWriter.add(eventFactory.createEndElement(prefix, uri, "start"));
-
-
-				}
-				if (part.getExtendsMods().get(i).getEnd() != null)
-				{
-					sElement = eventFactory.createStartElement(prefix, uri, "end");
-					eventWriter.add(sElement);
-					Characters characters = eventFactory.createCharacters(part.getExtendsMods().get(i).getEnd());
-					eventWriter.add(characters);
-
-					eventWriter.add(eventFactory.createEndElement(prefix, uri, "end"));
-
-
-				}
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "extent"));
-
-			}
-		}
-		if (part.getDates() != null && !part.getDates().isEmpty())
-		{
-			for (int i = 0; i < part.getDates().size(); i++)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, "date");
-
-				eventWriter.add(sE);
-
-				Characters characters = eventFactory.createCharacters(part.getDates().get(i).toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "date"));
-
-			}
-		}
-
-		eventWriter.add(eventFactory.createEndElement(prefix, uri, "part"));
-
-
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param place the place
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createAspectPlaceNode(final XMLEventWriter eventWriter, final String name, final Place place)
-			throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
-
-		eventWriter.add(sElement);
-
-		if (place.getType() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("type", place.getType()));
-
-		}
-		if (place.getSubtype() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("subtype", place.getSubtype()));
-
-		}
-		if (place.getKey() != null)
-		{
-			eventWriter.add(eventFactory.createAttribute("key", place.getKey()));
-
-		}
-		// Create Content
-		if (place.getPlaceName() != null)
-		{
-			Characters characters = eventFactory.createCharacters(place.getPlaceName());
-			eventWriter.add(characters);
-
-		}
-		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "place"));
 
 
 	}
@@ -1010,7 +586,7 @@ public class XMLProcessor implements XMLProcessorInterface
 
 		if (r.getRecord() != null)
 		{
-			createNodeNoNamespace(eventWriter, "recordInfo", r.getRecord(), prefix, uri);
+			createModsRecordNode(eventWriter, "recordInfo", r.getRecord(), prefix, uri);
 		}
 
 		eventWriter.add(eventFactory.createEndElement(prefix, uri, "mods"));
@@ -1022,11 +598,662 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * Creates the node.
 	 * @param eventWriter the event writer
 	 * @param name the name
+	 * @param nameMods the namemods object
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsNameNode(final XMLEventWriter eventWriter, final String name, final NameMods nameMods,
+			final String prefix, final String uri) throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement(prefix, uri, "name");
+		eventWriter.add(sElement);
+		if (nameMods.getType() != null)
+		{
+			eventWriter.add(eventFactory.createAttribute("type", nameMods.getType()));
+		}
+	
+		for (int i = 0; i < nameMods.getNameParts().size(); i++)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "namePart");
+	
+			eventWriter.add(sE);
+			if (nameMods.getNameParts().get(i).getType() != null)
+			{
+				eventWriter.add(eventFactory.createAttribute("type", nameMods.getNameParts().get(i).getType()));
+			}
+			Characters characters = eventFactory.createCharacters(nameMods.getNameParts().get(i).getNamePart());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "namePart"));
+	
+		}
+		if (nameMods.getAffiliation() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "affiliation");
+	
+			eventWriter.add(sE);
+	
+			Characters characters = eventFactory.createCharacters(nameMods.getAffiliation());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "affiliation"));
+	
+		}
+		if (nameMods.getRoleMods() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "role");
+	
+			eventWriter.add(sE);
+	
+			if (nameMods.getRoleMods().getRoleTerm() != null)
+			{
+				StartElement sE2 = eventFactory.createStartElement(prefix, uri, "roleTerm");
+	
+	
+				eventWriter.add(sE2);
+	
+				if (nameMods.getRoleMods().getAuthority() != null)
+				{
+					eventWriter.add(eventFactory.createAttribute("authority", nameMods.getRoleMods().getAuthority()));
+				}
+				if (nameMods.getRoleMods().getType() != null)
+				{
+					eventWriter.add(eventFactory.createAttribute("type", nameMods.getRoleMods().getType()));
+				}
+	
+				Characters characters = eventFactory.createCharacters(nameMods.getRoleMods().getRoleTerm());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "roleTerm"));
+	
+			}
+	
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "role"));
+	
+		}
+	
+		
+	
+		if (nameMods.getDescription() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "description");
+	
+			eventWriter.add(sE);
+	
+			Characters characters = eventFactory.createCharacters(nameMods.getDescription());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "description"));
+	
+		}
+		eventWriter.add(eventFactory.createEndElement(prefix, uri, "name"));
+	
+	
+	}
+
+	/**
+	 * Creates a sub node of a MODS titleInfo element.
+	 * @param eventWriter the event writer
+	 * @param name e.g. 'subTitle', 'title', 'partNumber'...
+	 * @param text the text
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsTitleInfoNode(final XMLEventWriter eventWriter, final String name, final String text,
+			final String prefix, final String uri) throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
+	
+		eventWriter.add(sElement);
+		Characters characters = eventFactory.createCharacters(text);
+		eventWriter.add(characters);
+		eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
+	
+	
+	}
+
+	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param originInfo the origin info
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsOriginInfoNode(final XMLEventWriter eventWriter, final String name, final OriginInfo originInfo,
+			final String prefix, final String uri) throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
+	
+		eventWriter.add(sElement);
+	
+	
+		if (originInfo.getDateCreated() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCreated");
+			eventWriter.add(sE);
+			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getDateCreated().toString());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCreated"));
+	
+		}
+		if (originInfo.getDateCreatedTimespan() != null)
+		{
+			if (originInfo.getDateCreatedTimespan().getDateFrom() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCreated");
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "start"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getDateCreatedTimespan().getDateFrom()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCreated"));
+	
+			}
+			if (originInfo.getDateCreatedTimespan().getDateTo() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCreated");
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "end"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getDateCreatedTimespan().getDateTo()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCreated"));
+	
+			}
+		}
+		if (originInfo.getDateIssued() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "dateIssued");
+			eventWriter.add(sE);
+			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getDateIssued().toString());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateIssued"));
+	
+		}
+		if (originInfo.getDateIssuedTimespan() != null)
+		{
+			if (originInfo.getDateIssuedTimespan().getDateFrom() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateIssued");
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "start"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getDateIssuedTimespan().getDateFrom()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateIssued"));
+	
+			}
+			if (originInfo.getDateIssuedTimespan().getDateTo() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateIssued");
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "end"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getDateIssuedTimespan().getDateTo()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateIssued"));
+	
+			}
+		}
+		if (originInfo.getDateCaptured() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCaptured");
+	
+			eventWriter.add(sE);
+			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getDateCaptured().toString());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCaptured"));
+	
+		}
+		if (originInfo.getDateCapturedTimespan() != null)
+		{
+			if (originInfo.getDateCapturedTimespan().getDateFrom() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCaptured");
+	
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "start"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getDateCapturedTimespan()
+						.getDateFrom().toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCaptured"));
+	
+			}
+			if (originInfo.getDateCapturedTimespan().getDateTo() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "dateCaptured");
+	
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "end"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getDateCapturedTimespan().getDateTo()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "dateCaptured"));
+	
+			}
+		}
+		if (originInfo.getCopyrightDate() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "copyrightDate");
+	
+			eventWriter.add(sE);
+			eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getCopyrightDate().toString());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "copyrightDate"));
+	
+		}
+		if (originInfo.getCopyrightDateTimespan() != null)
+		{
+			if (originInfo.getCopyrightDateTimespan().getDateFrom() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "copyrightDate");
+	
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "start"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getCopyrightDateTimespan()
+						.getDateFrom().toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "copyrightDate"));
+	
+			}
+			if (originInfo.getCopyrightDateTimespan().getDateTo() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "copyrightDate");
+	
+				eventWriter.add(sE);
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+				eventWriter.add(eventFactory.createAttribute("point", "end"));
+	
+				Characters characters = eventFactory.createCharacters(originInfo.getCopyrightDateTimespan().getDateTo()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "copyrightDate"));
+	
+			}
+		}
+	
+		if (originInfo.getPublisher() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "publisher");
+	
+			eventWriter.add(sE);
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getPublisher());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "publisher"));
+	
+		}
+	
+		if (originInfo.getPlaceTerm() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "place");
+	
+			eventWriter.add(sE);
+	
+	
+			StartElement sE2 = eventFactory.createStartElement(prefix, uri, "placeTerm");
+	
+	
+			eventWriter.add(sE2);
+			eventWriter.add(eventFactory.createAttribute("type", originInfo.getPlaceType()));
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getPlaceTerm());
+			eventWriter.add(characters);
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "placeTerm"));
+	
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "place"));
+	
+		}
+		if (originInfo.getEdition() != null)
+		{
+			StartElement sE = eventFactory.createStartElement(prefix, uri, "edition");
+	
+			eventWriter.add(sE);
+	
+			Characters characters = eventFactory.createCharacters(originInfo.getEdition());
+			eventWriter.add(characters);
+	
+			eventWriter.add(eventFactory.createEndElement(prefix, uri, "edition"));
+	
+		}
+	
+		eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
+	
+	}
+
+	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param part the part
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsRelatedItemNode(final XMLEventWriter eventWriter, final String name, final PartMods part,
+			final String prefix, final String uri) throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement(prefix, uri, "part");
+		eventWriter.add(sElement);
+	
+	
+		if (part.getDetails() != null && !part.getDetails().isEmpty())
+		{
+			for (int i = 0; i < part.getDetails().size(); i++)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "detail");
+	
+				eventWriter.add(sE);
+				if (part.getDetails().get(i).getType() != null)
+				{
+					eventWriter.add(eventFactory.createAttribute("type", part.getDetails().get(i).getType()));
+				}
+				if (part.getDetails().get(i).getNumber() != null)
+				{
+					sElement = eventFactory.createStartElement(prefix, uri, "number");
+					eventWriter.add(sElement);
+					Characters characters = eventFactory.createCharacters(part.getDetails().get(i).getNumber());
+					eventWriter.add(characters);
+	
+					eventWriter.add(eventFactory.createEndElement(prefix, uri, "number"));
+	
+	
+				}
+				if (part.getDetails().get(i).getCaption() != null)
+				{
+					sElement = eventFactory.createStartElement(prefix, uri, "caption");
+					eventWriter.add(sElement);
+					Characters characters = eventFactory.createCharacters(part.getDetails().get(i).getCaption());
+					eventWriter.add(characters);
+	
+					eventWriter.add(eventFactory.createEndElement(prefix, uri, "caption"));
+	
+	
+				}
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "detail"));
+	
+			}
+		}
+		if (part.getExtendsMods() != null && !part.getExtendsMods().isEmpty())
+		{
+			for (int i = 0; i < part.getExtendsMods().size(); i++)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "extent");
+	
+				eventWriter.add(sE);
+				if (part.getDetails().get(i).getType() != null)
+				{
+					eventWriter.add(eventFactory.createAttribute("unit", part.getExtendsMods().get(i).getUnit()));
+				}
+				if (part.getExtendsMods().get(i).getStart() != null)
+				{
+					sElement = eventFactory.createStartElement(prefix, uri, "start");
+					eventWriter.add(sElement);
+					Characters characters = eventFactory.createCharacters(part.getExtendsMods().get(i).getStart());
+					eventWriter.add(characters);
+	
+					eventWriter.add(eventFactory.createEndElement(prefix, uri, "start"));
+	
+	
+				}
+				if (part.getExtendsMods().get(i).getEnd() != null)
+				{
+					sElement = eventFactory.createStartElement(prefix, uri, "end");
+					eventWriter.add(sElement);
+					Characters characters = eventFactory.createCharacters(part.getExtendsMods().get(i).getEnd());
+					eventWriter.add(characters);
+	
+					eventWriter.add(eventFactory.createEndElement(prefix, uri, "end"));
+	
+	
+				}
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "extent"));
+	
+			}
+		}
+		if (part.getDates() != null && !part.getDates().isEmpty())
+		{
+			for (int i = 0; i < part.getDates().size(); i++)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, "date");
+	
+				eventWriter.add(sE);
+	
+				Characters characters = eventFactory.createCharacters(part.getDates().get(i).toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "date"));
+	
+			}
+		}
+	
+		eventWriter.add(eventFactory.createEndElement(prefix, uri, "part"));
+	
+	
+	}
+
+	/**
+	 * Creates a node for MODS record information. Defines no namespace in there.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param record the record
+	 * @param prefix the prefix
+	 * @param uri the uri
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsRecordNode(final XMLEventWriter eventWriter, final String name, final Record record,
+			final String prefix, final String uri) throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+	
+		// unlike the other methods, this one defines no namespace..
+		
+		// Create Start node
+	
+		if (!record.getRevisions().isEmpty())
+		{
+			if (record.getRevisions().firstElement() != null
+					&& record.getRevisions().firstElement().getTimeStamp() != null
+					&& record.getRevisions().firstElement().getAuthority() != null)
+			{
+				StartElement sE = eventFactory.createStartElement(prefix, uri, name);
+				eventWriter.add(sE);
+	
+	
+				StartElement sE2 = eventFactory.createStartElement(prefix, uri, "recordCreationDate");
+	
+				eventWriter.add(sE2);
+				Characters characters;
+				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+	
+				characters = eventFactory.createCharacters(_adminDateFormat.format(record.getRevisions().firstElement()
+						.getTimeStamp()));
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordCreationDate"));
+	
+	
+				sE2 = eventFactory.createStartElement(prefix, uri, "recordContentSource");
+	
+				eventWriter.add(sE2);
+				eventWriter.add(eventFactory.createAttribute("authority", "PDR"));
+				characters = eventFactory.createCharacters(record.getRevisions().firstElement().getAuthority()
+						.toString());
+				eventWriter.add(characters);
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordContentSource"));
+	
+	
+				eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
+	
+			}
+	
+			if (record.getRevisions().size() > 1)
+			{
+				for (int j = 1; j < record.getRevisions().size(); j++)
+				{
+					if (record.getRevisions().get(j).getTimeStamp() != null
+							&& record.getRevisions().get(j).getAuthority() != null)
+					{
+						StartElement sE = eventFactory.createStartElement(prefix, uri, name);
+						eventWriter.add(sE);
+	
+	
+						Characters characters;
+						StartElement sE2 = eventFactory.createStartElement(prefix, uri, "recordContentSource");
+	
+						eventWriter.add(sE2);
+						eventWriter.add(eventFactory.createAttribute("authority", "PDR"));
+	
+						characters = eventFactory.createCharacters(record.getRevisions().get(j).getAuthority()
+								.toString());
+						eventWriter.add(characters);
+	
+						eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordContentSource"));
+	
+						sE2 = eventFactory.createStartElement(prefix, uri, "recordChangeDate");
+	
+						eventWriter.add(sE2);
+						eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
+	
+						characters = eventFactory.createCharacters(_adminDateFormat.format(record.getRevisions().get(j)
+								.getTimeStamp()));
+						eventWriter.add(characters);
+	
+						eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordChangeDate"));
+	
+	
+	
+						eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
+	
+					}
+				}
+			}
+		}
+	
+	}
+
+	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param value the value
+	 * @param lang the lang
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsTemplateDocPartNode(final XMLEventWriter eventWriter, final String name, final String value, final String lang)
+			throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement("", "", name);
+	
+		eventWriter.add(sElement);
+		eventWriter.add(eventFactory.createAttribute("xml:lang", lang));
+	
+	
+		if (value.trim().length() > 0)
+		{
+			Characters characters = eventFactory.createCharacters(value.trim());
+			eventWriter.add(characters);
+		}
+		eventWriter.add(eventFactory.createEndElement("", "", name));
+	
+	
+	}
+
+	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param d the documentation
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createModsTemplateDocumentationNode(final XMLEventWriter eventWriter, final String name, final HashMap<String, String> d)
+			throws XMLStreamException
+	{
+	
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement("", "", name);
+	
+		eventWriter.add(sElement);
+		// FIXME nullpointer abfangen!!1
+	
+	
+		for (String str : d.keySet())
+		{
+	
+			createModsTemplateDocPartNode(eventWriter, "docPart", d.get(str), str);
+		}
+		if (d.isEmpty())
+		{
+			createModsTemplateDocPartNode(eventWriter, "docPart", "", "de");
+	
+		}
+		eventWriter.add(eventFactory.createEndElement("", "", name));
+	
+	
+	}
+
+	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
 	 * @param relation the relation
 	 * @param relationStm 
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private Vector<XMLEvent> createAspectRelationNode(final XMLEventWriter eventWriter, final String name, final Relation relation, RelationStm relationStm)
+	private Vector<XMLEvent> createAspectRelationNodes(final XMLEventWriter eventWriter, final String name, final Relation relation, RelationStm relationStm)
 			throws XMLStreamException
 	{
 		// assemble xml event list, but don't write it to stream yet,
@@ -1102,7 +1329,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		if (relStm.getRelations() != null) {
 			// queue up sub element xml events separately
 			for (Relation rel : relStm.getRelations()) {
-				Vector<XMLEvent> relXmlElements = createAspectRelationNode(eventWriter, "relation", rel, relStm);
+				Vector<XMLEvent> relXmlElements = createAspectRelationNodes(eventWriter, "relation", rel, relStm);
 				if (relXmlElements != null) // 
 					relStmXmlEvents.addAll(relXmlElements);
 			}
@@ -1116,39 +1343,6 @@ public class XMLProcessor implements XMLProcessorInterface
 		// write relationStm xml to stream
 		for (XMLEvent e : relStmXmlEvents)
 			eventWriter.add(e);
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param r the revision
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createPDRObjectRelationNode(final XMLEventWriter eventWriter, final String name, final Revision r, final String prefix,
-			final String uri) throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
-
-		eventWriter.add(sElement);
-		eventWriter.add(eventFactory.createAttribute("ref", new Integer(r.getRef()).toString()));
-		eventWriter
-				.add(eventFactory.createAttribute("timestamp", _adminDateFormat.format(r.getTimeStamp()).toString()));
-		eventWriter.add(eventFactory.createAttribute("authority", r.getAuthority().toString()));
-		// TODO das Schema sieht keinen authority namen mehr vor, änderung im
-		// model umsetzen.
-		// // Create Content
-		// Characters characters =
-		// eventFactory.createCharacters(r.getRevisor());
-		// eventWriter.add(characters);
-		// Create End node
-		EndElement eElement = eventFactory.createEndElement(prefix, uri, name);
-		eventWriter.add(eElement);
-
 	}
 
 	/**
@@ -1186,13 +1380,56 @@ public class XMLProcessor implements XMLProcessorInterface
 	}
 
 	/**
+	 * Creates the node.
+	 * @param eventWriter the event writer
+	 * @param name the name
+	 * @param place the place
+	 * @throws XMLStreamException the xML stream exception
+	 */
+	private void createAspectPlaceNode(final XMLEventWriter eventWriter, final String name, final Place place)
+			throws XMLStreamException
+	{
+		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
+		// Create Start node
+		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
+	
+		eventWriter.add(sElement);
+	
+		if (place.getType() != null)
+		{
+			eventWriter.add(eventFactory.createAttribute("type", place.getType()));
+	
+		}
+		if (place.getSubtype() != null)
+		{
+			eventWriter.add(eventFactory.createAttribute("subtype", place.getSubtype()));
+	
+		}
+		if (place.getKey() != null)
+		{
+			eventWriter.add(eventFactory.createAttribute("key", place.getKey()));
+	
+		}
+		// Create Content
+		if (place.getPlaceName() != null)
+		{
+			Characters characters = eventFactory.createCharacters(place.getPlaceName());
+			eventWriter.add(characters);
+	
+		}
+		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "place"));
+	
+	
+	}
+
+	/**
 	 * Writes an XML element representing an {@link Aspect}'s {@link SpatialStm} .
 	 * @param eventWriter the event writer
 	 * @param name the name
 	 * @param spaStm the spatial Statement
 	 * @throws XMLStreamException the xML stream exception
 	 */
-	private void createSpatialStmNode(final XMLEventWriter eventWriter, final String name, final SpatialStm spaStm)
+	private void createAspectSpatialStmNode(final XMLEventWriter eventWriter, final String name, final SpatialStm spaStm)
 			throws XMLStreamException
 	{
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
@@ -1230,59 +1467,6 @@ public class XMLProcessor implements XMLProcessorInterface
 	 * Creates the node.
 	 * @param eventWriter the event writer
 	 * @param name the name
-	 * @param value the value
-	 * @param lang the lang
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createModsTemplateDocPartNode(final XMLEventWriter eventWriter, final String name, final String value, final String lang)
-			throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement("", "", name);
-
-		eventWriter.add(sElement);
-		eventWriter.add(eventFactory.createAttribute("xml:lang", lang));
-
-
-		if (value.trim().length() > 0)
-		{
-			Characters characters = eventFactory.createCharacters(value.trim());
-			eventWriter.add(characters);
-		}
-		eventWriter.add(eventFactory.createEndElement("", "", name));
-
-
-	}
-
-	/**
-	 * Creates a sub node of a MODS titleInfo element.
-	 * @param eventWriter the event writer
-	 * @param name e.g. 'subTitle', 'title', 'partNumber'...
-	 * @param text the text
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createModsTitleInfoNode(final XMLEventWriter eventWriter, final String name, final String text,
-			final String prefix, final String uri) throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
-
-		eventWriter.add(sElement);
-		Characters characters = eventFactory.createCharacters(text);
-		eventWriter.add(characters);
-		eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
-
-
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
 	 * @param tStm the time Statement
 	 * @throws XMLStreamException the xML stream exception
 	 */
@@ -1292,7 +1476,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
-
+	
 		eventWriter.add(sElement);
 		// if node contains sub ndoes, it shouldnt be 'undefined'
 		if (tStm.getType() != null) {
@@ -1301,7 +1485,7 @@ public class XMLProcessor implements XMLProcessorInterface
 					tStm.setType("defined");
 		} else tStm.setType("defined");
 		eventWriter.add(eventFactory.createAttribute("type", tStm.getType()));
-
+	
 		// Create Content
 		if (tStm.getTimes() != null)
 		{
@@ -1310,16 +1494,16 @@ public class XMLProcessor implements XMLProcessorInterface
 				StartElement startElement = eventFactory.createStartElement("aodl",
 						"http://pdr.bbaw.de/namespaces/aodl/", "time");
 				eventWriter.add(startElement);
-
+	
 				if (tStm.getTimes().get(j).getAccuracy() != null)
 				{
 					eventWriter.add(eventFactory.createAttribute("accuracy", tStm.getTimes().get(j).getAccuracy()));
-
+	
 				}
 				if (tStm.getTimes().get(j).getType() != null)
 				{
 					eventWriter.add(eventFactory.createAttribute("type", tStm.getTimes().get(j).getType()));
-
+	
 				}
 				// Create Content
 				if (tStm.getTimes().get(j).getTimeStamp() != null)
@@ -1327,99 +1511,18 @@ public class XMLProcessor implements XMLProcessorInterface
 					Characters characters = eventFactory.createCharacters(tStm.getTimes().get(j).getTimeStamp()
 							.toString());
 					eventWriter.add(characters);
-
+	
 				}
 				eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "time"));
-
+	
 			}
-
+	
 		}
 		// Create End node
 		EndElement eElement = eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", name);
 		eventWriter.add(eElement);
-
-
-	}
-
-	/**
-	 * Creates the node.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param validationStm the validation statement
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @param pdrObject 
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createValidationStmNode(final XMLEventWriter eventWriter, final String name, final ValidationStm validationStm,
-			final String prefix, final String uri, PdrMetaObject pdrObject) throws XMLStreamException
-	{
-		// create validationStm element
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-		// Create Start node
-		StartElement sElement = eventFactory.createStartElement(prefix, uri, name);
-		
-		eventWriter.add(sElement);
-		String auth = null;
-		if (validationStm.getAuthority() == null) {
-			buflog("Aodl warning: validationStm without authority. falling back to revision authority");  
-			// XXX: first or last revision?
-			auth = pdrObject.getRecord().getRevisions().get(0).getAuthority().toString();
-		} else 
-			auth = validationStm.getAuthority().toString();
-		eventWriter.add(eventFactory.createAttribute("authority", auth));
-
-
-		if (validationStm.getReference() != null) {
-			// XXX aodl schema actually does not limit references to only one per validationStm...
-			Reference ref = validationStm.getReference();
-			// <reference>
-			sElement = eventFactory.createStartElement(prefix, uri, "reference");
-
-			eventWriter.add(sElement);
-			if (ref.getInternal() != null)
-				eventWriter.add(eventFactory.createAttribute("internal", ref.getInternal()));
-
-			// @quality
-			if (ref.getQuality() != null) // XXX aodl schema does actually not require quality attribute, but rodl editor does...
-				eventWriter.add(eventFactory.createAttribute("quality", ref.getQuality()));
-
-			// authority attribute is not even a part in aodl schema reference definition...!
-			// but it is in podl schema!!!
-			// @authority - only if serializing Person object
-			if (pdrObject instanceof Person)
-				if (ref.getAuthority() != null) {
-					eventWriter.add(eventFactory.createAttribute("authority", ref.getAuthority().toString()));
-				} else
-					eventWriter.add(eventFactory.createAttribute("authority", auth));
-
-			// Create Content
-			if (ref.getSourceId() != null) {
-				Characters characters = eventFactory.createCharacters(ref.getSourceId().toString());
-				eventWriter.add(characters);
-			} else 
-				buflog("Aodl violation: no source Id in reference elements!");
-			
-			EndElement eElement = eventFactory.createEndElement(prefix, uri, "reference");
-			eventWriter.add(eElement);
-		}
-
-		sElement = eventFactory.createStartElement(prefix, uri, "interpretation");
-		eventWriter.add(sElement);
-
-		if (validationStm.getInterpretation() != null) {
-			Characters characters = eventFactory.createCharacters(validationStm.getInterpretation());
-			eventWriter.add(characters);
-		}
-		EndElement eElement = eventFactory.createEndElement(prefix, uri, "interpretation");
-		eventWriter.add(eElement);
-
-
-		// Create End node
-		eElement = eventFactory.createEndElement(prefix, uri, name);
-		eventWriter.add(eElement);
-
-
+	
+	
 	}
 
 	/**
@@ -1436,7 +1539,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		// Create Start node
 		StartElement sElement = eventFactory.createStartElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/",
 				tr.getName());
-
+	
 		eventWriter.add(sElement);
 		if (tr.getType() != null && tr.getType().length() > 0)
 		{
@@ -1458,7 +1561,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		{
 			eventWriter.add(eventFactory.createAttribute("ana", tr.getAna()));
 		}
-
+	
 		if (tr.getKey() != null && tr.getKey().length() > 0)
 		{
 			eventWriter.add(eventFactory.createAttribute("key", tr.getKey()));
@@ -1483,7 +1586,7 @@ public class XMLProcessor implements XMLProcessorInterface
 		{
 			eventWriter.add(eventFactory.createAttribute("notAfter", tr.getNotAfter().toString()));
 		}
-
+	
 		// FIXME Workaround
 		text = text + " ";
 		// buflog("injester, tr.start " + tr.getStart() + " ln " +
@@ -1491,111 +1594,11 @@ public class XMLProcessor implements XMLProcessorInterface
 		String subText = text.substring(tr.getStart(), Math.min(tr.getStart() + tr.getLength(), text.length()));
 		Characters characters = eventFactory.createCharacters(subText);
 		eventWriter.add(characters);
-
+	
 		EndElement eElement = eventFactory
 				.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", tr.getName());
 		eventWriter.add(eElement);
-
-	}
-
-	/**
-	 * Creates the node no namespace.
-	 * @param eventWriter the event writer
-	 * @param name the name
-	 * @param record the record
-	 * @param prefix the prefix
-	 * @param uri the uri
-	 * @throws XMLStreamException the xML stream exception
-	 */
-	private void createNodeNoNamespace(final XMLEventWriter eventWriter, final String name, final Record record,
-			final String prefix, final String uri) throws XMLStreamException
-	{
-		XMLEventFactory eventFactory = XMLEventFactory.newInstance();
-
-
-		// Create Start node
-
-		if (!record.getRevisions().isEmpty())
-		{
-			if (record.getRevisions().firstElement() != null
-					&& record.getRevisions().firstElement().getTimeStamp() != null
-					&& record.getRevisions().firstElement().getAuthority() != null)
-			{
-				StartElement sE = eventFactory.createStartElement(prefix, uri, name);
-				eventWriter.add(sE);
-
-
-				StartElement sE2 = eventFactory.createStartElement(prefix, uri, "recordCreationDate");
-
-				eventWriter.add(sE2);
-				Characters characters;
-				eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-
-				characters = eventFactory.createCharacters(_adminDateFormat.format(record.getRevisions().firstElement()
-						.getTimeStamp()));
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordCreationDate"));
-
-
-				sE2 = eventFactory.createStartElement(prefix, uri, "recordContentSource");
-
-				eventWriter.add(sE2);
-				eventWriter.add(eventFactory.createAttribute("authority", "PDR"));
-				characters = eventFactory.createCharacters(record.getRevisions().firstElement().getAuthority()
-						.toString());
-				eventWriter.add(characters);
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordContentSource"));
-
-
-				eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
-
-			}
-
-			if (record.getRevisions().size() > 1)
-			{
-				for (int j = 1; j < record.getRevisions().size(); j++)
-				{
-					if (record.getRevisions().get(j).getTimeStamp() != null
-							&& record.getRevisions().get(j).getAuthority() != null)
-					{
-						StartElement sE = eventFactory.createStartElement(prefix, uri, name);
-						eventWriter.add(sE);
-
-
-						Characters characters;
-						StartElement sE2 = eventFactory.createStartElement(prefix, uri, "recordContentSource");
-
-						eventWriter.add(sE2);
-						eventWriter.add(eventFactory.createAttribute("authority", "PDR"));
-
-						characters = eventFactory.createCharacters(record.getRevisions().get(j).getAuthority()
-								.toString());
-						eventWriter.add(characters);
-
-						eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordContentSource"));
-
-						sE2 = eventFactory.createStartElement(prefix, uri, "recordChangeDate");
-
-						eventWriter.add(sE2);
-						eventWriter.add(eventFactory.createAttribute("encoding", _encoding));
-
-						characters = eventFactory.createCharacters(_adminDateFormat.format(record.getRevisions().get(j)
-								.getTimeStamp()));
-						eventWriter.add(characters);
-
-						eventWriter.add(eventFactory.createEndElement(prefix, uri, "recordChangeDate"));
-
-
-
-						eventWriter.add(eventFactory.createEndElement(prefix, uri, name));
-
-					}
-				}
-			}
-		}
-
+	
 	}
 
 	/**
@@ -1747,7 +1750,7 @@ public class XMLProcessor implements XMLProcessorInterface
 			spatialStms.add(spatialStm);
 		}
 		for (SpatialStm spatialStm : spatialStms)
-			createSpatialStmNode(eventWriter, "spatialStm", spatialStm);
+			createAspectSpatialStmNode(eventWriter, "spatialStm", spatialStm);
 		eventWriter.add(eventFactory.createEndElement("aodl", "http://pdr.bbaw.de/namespaces/aodl/", "spatialDim"));
 		// </spatialDim>
 
