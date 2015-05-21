@@ -1124,10 +1124,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			if (isValidXMLAspect(xml2)) {	
 				try {
-					_facade.saveAspect(a); // XXX bringt das ueberhaupt was wenn aspect nicht new oder dirty ist? Und ist dies vielleicht der grund fuer die doppelten aspecte in baseX? 
+					_dbCon.store2DB(xml2, "aspect", id.toString() + ".xml", true);
+					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "saved " + id.toString());
+					// XXX saveaspect wirft nullpointer bei dagmar siehe log vom 29.5.
+					//_facade.saveAspect(a); // XXX bringt das ueberhaupt was wenn aspect nicht new oder dirty ist? Und ist dies vielleicht der grund fuer die doppelten aspecte in baseX? 
 				} catch (Exception e) {
 					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to write aspect to DB: "+a.getDisplayNameWithID(), e);
 					iLogger.log(log);
+					return null;
 				}
 				return xml2;
 			}
@@ -1200,12 +1204,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			if (isValidXMLPerson(xml2))	{
 				try {
-					_facade.savePerson(p);
+					_dbCon.store2DB(xml2, "person", id.toString() + ".xml", true);
+					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Saved object " + id.toString());
+					//_facade.savePerson(p); // XXX geht schief nullpointer dagmar 19.5.
 					//if (isValidXMLPerson(xml2))	{
 					//}
 				} catch (Exception e) {
 					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to  write person to DB "+p.getDisplayNameWithID(), e);
 					iLogger.log(log);
+					return null;
 				}
 				return xml2;
 			}
@@ -1360,10 +1367,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			if (isValidXMLReference(xml2))	{
 				try {
-					_facade.saveReference(r);
+					_dbCon.store2DB(xml2, "reference", id.toString() + ".xml", true);
+					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject renaming done " + id.toString());
+					// _facade.saveReference(r); // XXX nullpointer bei dagmar siehe log 19.5.
 				} catch (Exception e) {
 					log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Failed to save mods ref to DB "+r.getDisplayNameWithID(), e);
 					iLogger.log(log);
+					return null;
 				}
 				return xml2;
 			}
