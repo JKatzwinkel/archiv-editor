@@ -37,6 +37,7 @@ import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Vector;
 
+import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.metamodel.PdrDate;
 import org.bbaw.pdr.ae.metamodel.PdrId;
 import org.bbaw.pdr.ae.metamodel.Record;
@@ -70,9 +71,6 @@ import org.xml.sax.helpers.DefaultHandler;
 public class ReferenceSaxHandler extends DefaultHandler // implements
 // ContentHandler
 {
-
-	/** The admin date format. */
-	private SimpleDateFormat _adminDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss");
 
 	/** instance of PDRObjectDisplayNameProcessor. */
 	// private PDRObjectDisplayNameProcessor pdrDisplayNameProc = new
@@ -516,7 +514,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 			_creDate = false;
 			try
 			{
-				_revision.setTimeStamp(_adminDateFormat.parse(new String(ch, start, length)));
+				_revision.setTimeStamp(AEConstants.ADMINDATE_FORMAT.parse(new String(ch, start, length)));
 			}
 			catch (ParseException e)
 			{
@@ -534,7 +532,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 			_chaDate = false;
 			try
 			{
-				_revision.setTimeStamp(_adminDateFormat.parse(new String(ch, start, length)));
+				_revision.setTimeStamp(AEConstants.ADMINDATE_FORMAT.parse(new String(ch, start, length)));
 			}
 			catch (ParseException e)
 			{

@@ -74,9 +74,6 @@ import org.xml.sax.helpers.DefaultHandler;
 public class AspectSaxHandler extends DefaultHandler
 {
 
-	/** The admin data format. */
-	private SimpleDateFormat _adminDataFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss");
-
 	/** The _facade. */
 	private Facade _facade = Facade.getInstanz();
 	/** instance of PDRObjectDisplayNameProcessor. */
@@ -701,7 +698,7 @@ public class AspectSaxHandler extends DefaultHandler
 				{
 					try
 					{
-						_revision.setTimeStamp(_adminDataFormat.parse(a.getValue(i)));
+						_revision.setTimeStamp(AEConstants.ADMINDATE_FORMAT.parse(a.getValue(i)));
 					}
 					catch (ParseException e)
 					{

@@ -36,6 +36,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Vector;
 
+import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.metamodel.PdrId;
 import org.bbaw.pdr.ae.metamodel.Record;
 import org.bbaw.pdr.ae.metamodel.Revision;
@@ -84,9 +85,6 @@ public class UserSaxHandler implements ContentHandler
 
 	/** The contact. */
 	private boolean _contact;
-
-	/** The admin data format. */
-	private SimpleDateFormat _adminDataFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss");
 
 	/** The _result object. */
 	private Object _resultObject;
@@ -246,7 +244,7 @@ public class UserSaxHandler implements ContentHandler
 				{
 					try
 					{
-						_revision.setTimeStamp(_adminDataFormat.parse(atts.getValue(i)));
+						_revision.setTimeStamp(AEConstants.ADMINDATE_FORMAT.parse(atts.getValue(i)));
 					}
 					catch (ParseException e)
 					{

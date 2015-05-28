@@ -36,6 +36,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
 
+import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.metamodel.PdrId;
 import org.bbaw.pdr.ae.metamodel.Record;
 import org.bbaw.pdr.ae.metamodel.Revision;
@@ -58,9 +59,6 @@ import org.xml.sax.helpers.DefaultHandler;
  */
 public class PersonSaxHandler extends DefaultHandler implements ContentHandler
 {
-
-	/** The admin data format. */
-	private SimpleDateFormat _adminDataFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss");
 
 	/** The all persons. */
 	private HashMap<PdrId, Person> _allPersons = new HashMap<PdrId, Person>();
@@ -333,7 +331,7 @@ public class PersonSaxHandler extends DefaultHandler implements ContentHandler
 				{
 					try
 					{
-						_revision.setTimeStamp(_adminDataFormat.parse(a.getValue(i)));
+						_revision.setTimeStamp(AEConstants.ADMINDATE_FORMAT.parse(a.getValue(i)));
 					}
 					catch (ParseException e)
 					{
