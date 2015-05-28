@@ -1,0 +1,29 @@
+#! /bin/bash
+
+if (( $# < 1 )); then
+	read q
+else
+	if (( $# > 1 )); then
+		q="-ipath *$1*$2*"
+		hl="$1.*/$2"
+	else
+		q="-iname $1*"
+		hl=$1
+	fi
+fi
+
+echo $q $hl
+
+res=$(find . $q | grep -v "\.class$")
+for i in $res; do
+ echo $i | grep -i --color $hl
+done
+
+f=$(echo $res | head -n 1)
+if [ -n "$f" ]; then
+ echo $f | xclip -selection clipboard
+ vim $f
+else
+	echo no match for query $q
+fi
+
