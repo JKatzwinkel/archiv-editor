@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
 
-<product name="Archiv-Editor" id="org.bbaw.pdr.ae.standalone.product2" application="org.bbaw.pdr.ae.standalone.application" version="2.3.13" useFeatures="true" includeLaunchers="true">
+<product name="Archiv-Editor" id="org.bbaw.pdr.ae.standalone.product2" application="org.bbaw.pdr.ae.standalone.application" version="2.3.14" useFeatures="true" includeLaunchers="true">
 
    <aboutInfo>
       <image path="/org.bbaw.pdr.ae.standalone/icons/logo_bbaw.gif"/>
@@ -41,7 +41,6 @@
             winLargeLow="/org.bbaw.pdr.ae.standalone/icons/icon_ae_48_8.bmp"/>
       </win>
    </launcher>
-
 
    <vm>
    </vm>
