@@ -265,7 +265,7 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 	/** The combo tagging role. */
 	private Combo _comboTaggingRole;
 
-	/** The text tagging key. */
+	/** Textfield holding input of a markup's key attribute */
 	private Text _textTaggingKey;
 
 	/** The quick select text. */
@@ -386,7 +386,8 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 	/** The composite t date. */
 	private Composite _compositeTDate;
 
-	/** The tagging1 coposite. */
+	/** The parent composite of all the widgets waiting for input
+	 * to create/modify notification markup elements ("tagging ranges") */
 	private Composite _tagging1Coposite;
 
 	/** The composite tagging panel. */
@@ -2037,7 +2038,7 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 					ContentProposalAdapter adapter = new ContentProposalAdapter(_textTaggingKey,
 							new TextContentAdapter(),
 							new FacetContentProposalProvider(_facade.getAllReferenceFacets()), keyStroke,
-							autoActivationCharacters);
+							autoActivationCharacters); // XXX warum references???
 					adapter.setLabelProvider(new AutoCompleteNameLabelProvider());
 					adapter.addContentProposalListener(new IContentProposalListener()
 					{
@@ -5786,12 +5787,25 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 	 * <p>
 	 * generates GUI elements for representation and modification of
 	 * {@link TimeDim} and {@link SpatialDim} information of the current {@link Aspect}.
+	 * </p><p>
+	 * Can also add/remove {@link TimeStm}/{@link SpatialStm} or {@link Time}/{@link Place} 
+	 * objects prior to GUI assemblage. Functional behaviour is determined by parameter <code>type</code>:
+	 * <ul><li>0. Do nothing, just make GUI stuff</li>
+	 * <li>1. Add new {@link TimeStm}</li>
+	 * <li>2. Delete {@link TimeStm} at index <code>timeStm</code></li>
+	 * <li>3. Add new {@link Time} object at index <code>timeStm</code></li>
+	 * <li>4. Delete {@link Time} element  index <code>timeStm</code></li>
+	 * <li>5. add new {@link SpatialStm}</li>
+	 * <li>6. Delete {@link SpatialStm}</li>
+	 * <li>7. Add new {@link Place} at  index <code>spatialStm</code></li>
+	 * <li>8. Delete {@link Place} at  index <code>spatialStm</code></li>
+	 * <li>15. Add both new {@link TimeStm} and {@link SpatialStm}</li></ul>
 	 * </p>
-	 * @param type the type
-	 * @param timeStm the time stm
-	 * @param time the time
-	 * @param spatialStm the spatial stm
-	 * @param place the place
+	 * @param type numerical value specifying functional behaviour
+	 * @param timeStm index of {@link TimeStm} to be deleted or to which an additional {@link Time} object is to be added
+	 * @param time index of {@link Time} element to be deleted. The {@link TimeStm} in which deletion is to be done must be specified using <code>timeStm</code> param. 
+	 * @param spatialStm index of {@link SpatialStm} which should be deleted or extended by a new {@link Place} element
+	 * @param place index of {@link Place} element which shall be deleted. spatialStm must we specified as well, obviously.
 	 */
 	private void loadTimeSpatialDim(Integer type, final Integer timeStm, final Integer time, final Integer spatialStm,
 			final Integer place)
@@ -6245,6 +6259,8 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 			}
 		}
 
+		// XXX this is were spatialStm controls are put together. What about this 'set key' button??
+		// XXX also, are newly created place elements correctly put into aspects contents?
 		if (_currentAspect.getSpatialDim() != null && _currentAspect.getSpatialDim().getSpatialStms() != null)
 		{
 			for (int i = 0; i < _currentAspect.getSpatialDim().getSpatialStms().size(); i++)
@@ -6557,6 +6573,7 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 						placeKeyL.setText(NLMessages.getString("Editor_key"));
 						placeKeyL.setLayoutData(new GridData());
 
+						// XXX this is the spatialStm place's 'key' attr
 						final Text placeKeyText = new Text(compositePlace, SWT.BORDER);
 						placeKeyText.setEditable(_mayWrite);
 						placeKeyText.setBackground(WHITE_COLOR);
@@ -6572,6 +6589,7 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 						{
 							placeKeyText.setText(""); //$NON-NLS-1$
 						}
+						//XXX value from text field is only copied on lost focus event
 						placeKeyText.addFocusListener(new FocusAdapter()
 						{
 							@Override
@@ -6580,19 +6598,6 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 								p.setKey(placeKeyText.getText());
 							}
 						});
-						final Button setPlaceKey = new Button(compositePlace, SWT.PUSH);
-						setPlaceKey.setText(NLMessages.getString("Editor_setKey"));
-						setPlaceKey.setLayoutData(_gridData);
-						setPlaceKey.setEnabled(false);
-						setPlaceKey.addSelectionListener(new SelectionAdapter()
-						{
-							@Override
-							public void widgetSelected(final SelectionEvent event)
-							{
-							}
-						});
-						setPlaceKey.setLayoutData(new GridData());
-						setPlaceKey.pack();
 
 						final Button delPlace = new Button(compositePlace, SWT.PUSH);
 						delPlace.setText(NLMessages.getString("Editor_deletePlace"));
