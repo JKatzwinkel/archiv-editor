@@ -872,7 +872,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				log(1, "Send category definition on server for locally modified provider "+s);
 				DatatypeDesc dtd = _configManager.getDatatypeDesc(s);
 				String configStr = new ConfigXMLProcessor().writeToXML(dtd);
-				// System.out.println("injestModifiedConfig() " + configStr);
+				System.out.println("injestModifiedConfig() " + configStr);
 				Utilities.setCategories(configStr, dtd.getProvider());
 				monitor.worked(1);
 
@@ -1112,6 +1112,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		boolean isValid = isValidXMLAspect(xml);
 		
 		if (!isValid) {
+			log(1, "Aspect XML is invalid:\n"+xml);
 			String id = extractPdrId(xml);
 			Aspect a = _facade.getAspect(new PdrId(id));
 			String xml2 = "";
@@ -1124,8 +1125,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			if (isValidXMLAspect(xml2)) {	
 				try {
-					_dbCon.store2DB(xml2, "aspect", id.toString() + ".xml", true);
-					log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "saved " + id.toString());
+					synchronized (_dbCon) {
+						_dbCon.store2DB(xml2, "aspect", id + ".xml", false);
+						log(0, "saved " + id+".xml"+":\n"+xml2);
+					}
+					_dbCon.optimize("aspect");
 					// XXX saveaspect wirft nullpointer bei dagmar siehe log vom 29.5.
 					//_facade.saveAspect(a); // XXX bringt das ueberhaupt was wenn aspect nicht new oder dirty ist? Und ist dies vielleicht der grund fuer die doppelten aspecte in baseX? 
 				} catch (Exception e) {
@@ -1643,7 +1647,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// generate dict of depending objects from dependency map, 
 			for (String i : newObjsIds) 
 				for (String d : dependencies.get(i))
-					dependingOn.get(d).add(i);
+					try {
+						dependingOn.get(d).add(i);
+					} catch (NullPointerException e) {
+						log(2, "Object "+i+" references unknown object "+d);
+					}
 						
 			// sequence of new objs Ids put in dependency-sensitive order
 			Vector<String> objsIdqueue = new Vector<String>();
