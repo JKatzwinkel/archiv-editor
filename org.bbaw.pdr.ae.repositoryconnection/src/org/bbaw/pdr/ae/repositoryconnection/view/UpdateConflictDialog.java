@@ -1524,8 +1524,17 @@ public class UpdateConflictDialog extends TitleAreaDialog
 						historyLabelLoc.setText(NLMessages.getString("Editor_revision_history")); //$NON-NLS-1$
 						historyLabelLoc.setBackground(historyLabelLoc.getParent().getBackground());
 						historyLabelLoc.setLayoutData(new GridData());
+						if (oc.getLocalObject() != null) {
+							iLogger.log(new Status(IStatus.INFO, Activator.PLUGIN_ID, "Local object present: "+oc.getLocalObject().getPdrId()));
+							if (oc.getLocalObject().getRecord() != null) {
+								iLogger.log(new Status(IStatus.INFO, Activator.PLUGIN_ID, "Local object has record: "+oc.getLocalObject().getRecord()));
+							} else
+								iLogger.log(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Local object record is null!"));								
+						} else
+							iLogger.log(new Status(IStatus.ERROR, Activator.PLUGIN_ID, "Local object is null! "));
+									
 						final RevisionHistoryToolTip historyToolTip = new RevisionHistoryToolTip(historyLabelLoc, oc
-								.getLocalObject().getRecord());
+								.getLocalObject().getRecord()); // XXX nullpointer
 						historyToolTip.setShift(new Point(-25, -25));
 						historyToolTip.setPopupDelay(0);
 						historyToolTip.setHideOnMouseDown(true);
