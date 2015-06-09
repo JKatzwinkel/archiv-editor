@@ -1485,7 +1485,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 				|| qName.equals("mods:recordInfo"))
 		{
 			_record = new Record();
-			_revision = new Revision(); // XXX revision ist leer
+			_revision = new Revision(); 
 			_acc = false;
 		}
 		else if (localName.equals("recordCreationDate") || qName.equals("recordCreationDate")

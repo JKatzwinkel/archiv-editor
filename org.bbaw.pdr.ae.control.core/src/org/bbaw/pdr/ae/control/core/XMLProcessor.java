@@ -172,10 +172,12 @@ public class XMLProcessor implements XMLProcessorInterface
 		sElement = eventFactory.createStartElement(prefix, uri, "interpretation");
 		eventWriter.add(sElement);
 	
-		if (validationStm.getInterpretation() != null) {
-			Characters characters = eventFactory.createCharacters(validationStm.getInterpretation());
-			eventWriter.add(characters);
-		}
+		if (validationStm.getInterpretation() != null)
+			if (validationStm.getInterpretation().trim().length() > 0) {
+				log(0, "Writing reference interpretation: '"+validationStm.getInterpretation().trim()+"'", null);
+				Characters characters = eventFactory.createCharacters(validationStm.getInterpretation().trim());
+				eventWriter.add(characters);
+			}
 		EndElement eElement = eventFactory.createEndElement(prefix, uri, "interpretation");
 		eventWriter.add(eElement);
 	
