@@ -409,7 +409,6 @@ public class LoginDialog extends TitleAreaDialog
 				if (isValidInput())
 				{
 					okPressed();
-					saveInput();
 					close();
 
 				}
