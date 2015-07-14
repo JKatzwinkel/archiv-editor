@@ -488,7 +488,7 @@ public final class AEConstants
 		AUTOMATED_UPDATE = (PROPERTIES.getProperty("AUTOMATED_UPDATE").equals("true"));
 
 		REPOSITORY_ID = Integer.parseInt(PROPERTIES.getProperty("REPOSITORY_ID"));
-		if (CommonActivator.getProjectID() >= 0)
+		if (CommonActivator.getProjectID() > 0)
 		{
 			PROJECT_ID = CommonActivator.getProjectID();
 		}

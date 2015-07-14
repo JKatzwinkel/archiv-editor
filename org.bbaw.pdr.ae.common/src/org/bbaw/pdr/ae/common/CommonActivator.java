@@ -418,6 +418,7 @@ public class CommonActivator extends AbstractUIPlugin
 		}
 
 		public static void setProjectID(int projectID) {
+			// TODO: call this on first startup once the project specifics have been submitted
 			_projectID = projectID;
 			
 		}

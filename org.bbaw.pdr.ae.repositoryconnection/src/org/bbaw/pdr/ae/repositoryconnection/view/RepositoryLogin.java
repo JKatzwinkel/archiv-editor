@@ -242,6 +242,7 @@ public class RepositoryLogin extends TitleAreaDialog
 				{
 					if (projectIDText.getText().length() > 0)
 					{
+						// XXX event does not seem to fire when save button is clicked.
 						_projectID = Integer.parseInt(projectIDText.getText());
 					}
 					else
