@@ -309,7 +309,7 @@ public class LoginDialog extends TitleAreaDialog
 			for (String userNames : _savedUsers.keySet())
 			{
 				_userNameCombo.add(userNames);
-				// System.out.println("user added " + userNames);
+				// log(1, "user added " + userNames);
 			}
 			int index = 0;
 			if (lastUser != null
@@ -479,8 +479,10 @@ public class LoginDialog extends TitleAreaDialog
 	 */
 	private boolean isValidInput()
 	{
+		log(1, "Validating user credentials...");
 		_projectId = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "PROJECT_ID",
 				AEConstants.PROJECT_ID, null);
+		log(1, "Project number returned by platform preferences service: "+_projectId);
 		boolean valid = true;
 		_userName = _userNameCombo.getText();
 		_userPassword = _userPasswordText.getText();
@@ -518,16 +520,15 @@ public class LoginDialog extends TitleAreaDialog
 							for (IUpdateManager rum : rums) {
 								try {
 									iLogger.log(new Status(IStatus.INFO, Activator.PLUGIN_ID, "Look up ID of user "+_userName+" in project "+_projectId));
-									System.out.println("Look up ID of user "+_userName+" in project "+_projectId);
+									log(1, "Look up ID of user "+_userName+" in project "+_projectId);
 									_userID = rum.getUserId(_userName, _projectId);
-									System.out.println("Retrieved user ID: "+_userID);
-									System.out.println("Load initial users");
+									log(1, "Retrieved user ID: "+_userID);
+									log(1, "Load initial users");
 									rum.loadInitialUsers(_userID, _userPassword, null);
 									usersInitialized = true;
 								} catch (Exception e) {
-									System.out.println("Error: "+e.getMessage());
-									e.printStackTrace();
-									System.out.println("Verify/create users in user manager.");
+									log(2, "Error: "+e.getMessage(), e);
+									log(1, "Verify/create users in user manager.");
 									_userManager.verifyOrCreateUsers();
 								}
 							}
@@ -547,21 +548,21 @@ public class LoginDialog extends TitleAreaDialog
 			finally{}
 		}
 		if (_onStart) {
-			System.out.println("startup flag set.");
+			log(1, "startup flag set.");
 			User u = null;
 			try {
-				System.out.println("Attempt to obtain user object based on user name.");
+				log(1, "Attempt to obtain user object based on user name.");
 				u = _userManager.getUsersByUserName(_userName);
-				System.out.println("Returned user object: "+u.getDisplayNameWithID());
+				log(1, "Returned user object: "+u.getDisplayNameWithID());
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 			if (u == null){
-				System.out.println("User object is NULL. Try to load user data.");
+				log(1, "User object is NULL. Try to load user data.");
 				if (loadUserData(_userName, _userPassword)) {
 				
 					try	{
-						System.out.println("Try to get user object from user manager by user name");
+						log(1, "Try to get user object from user manager by user name");
 						u = _userManager.getUsersByUserName(_userName);
 					} catch (Exception e) {
 						e.printStackTrace();
@@ -570,7 +571,7 @@ public class LoginDialog extends TitleAreaDialog
 				}
 			}
 			if (u == null) {
-				System.out.println("User object is still NULL");
+				log(2, "User object is still NULL");
 				setErrorMessage(NLMessages.getString("LoginDialog_errorMessageUserNameUnknown")); //$NON-NLS-1$
 				IStatus sname = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Login user name is valid"); //$NON-NLS-1$
 				iLogger.log(sname);
@@ -579,17 +580,17 @@ public class LoginDialog extends TitleAreaDialog
 			if (u.getAuthentication() != null && _userName.equals(u.getAuthentication().getUserName()))	{
 				IStatus sname = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Login user name is valid"); //$NON-NLS-1$
 				iLogger.log(sname);
-				System.out.println("User name valid.");
+				log(1, "User name valid.");
 				if (_userPassword.equals(u.getAuthentication().getPassword()))	{
 					IStatus spw = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Login password is also valid"); //$NON-NLS-1$
 					iLogger.log(spw);
-					System.out.println("Password correct.");
+					log(1, "Password correct.");
 					valid = true;
 					_user = u;
 					return valid;
 				}
 				else {
-					System.out.println("Password incorrect!");
+					log(2, "Password incorrect!");
 					setErrorMessage(NLMessages.getString("LoginDialog_errorMessagePasswordInvalid")); //$NON-NLS-1$
 					valid = false;
 					return valid;
@@ -597,26 +598,26 @@ public class LoginDialog extends TitleAreaDialog
 			}
 			else {
 				setErrorMessage(NLMessages.getString("LoginDialog_errorMessageUserNameUnknown")); //$NON-NLS-1$
-				System.out.println("User name not known.");
+				log(2, "User name not known.");
 				valid = false;
 			}
 		} 
 		else 
 		{
-			System.out.println("OnStart flag not set.");
-			System.out.println("get current user from facade");
+			log(1, "OnStart flag not set.");
+			log(1, "get current user from facade");
 			_user = _facade.getCurrentUser();
 			if (_userName.equals(_user.getAuthentication().getUserName())) // FIXME: nullpointer in case 'modify user' dialog didn't work out recently
 			{
-				System.out.println("user name recognized.");
+				log(1, "user name recognized.");
 				if (_userPassword.equals(_user.getAuthentication().getPassword()))
 				{
-					System.out.println("password correct.");
+					log(1, "password correct.");
 					valid = true;
 				}
 				else
 				{
-					System.out.println("password incorrect!");
+					log(2, "password incorrect!");
 					setErrorMessage(NLMessages.getString("LoginDialog_errorMessagePasswordInvalid")); //$NON-NLS-1$
 					valid = false;
 					return valid;
@@ -624,7 +625,7 @@ public class LoginDialog extends TitleAreaDialog
 			}
 			else
 			{
-				System.out.println("User name not recognized!");
+				log(2, "User name not recognized!");
 				setErrorMessage(NLMessages.getString("LoginDialog_login_message_not_your_userName"));
 				valid = false;
 			}
@@ -652,6 +653,7 @@ public class LoginDialog extends TitleAreaDialog
 	@Override
 	protected final void okPressed()
 	{
+		log(1, "OK button pressed, process input...");
 		saveInput();
 		// super.okPressed();
 	}
@@ -662,19 +664,19 @@ public class LoginDialog extends TitleAreaDialog
 	 */
 	private void saveInput()
 	{
-		System.out.println("Save login credentials.");
+		log(1, "Save login credentials.");
 		if (_onStart)
 		{
-			System.out.println("on start flag set.");
+			log(1, "on start flag set.");
 			_userName = _userNameCombo.getText();
 			IStatus sun = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Login save user name: " + _userName); //$NON-NLS-1$
 			iLogger.log(sun);
-			System.out.println("Login save user name: " + _userName);
-			System.out.println("set current user via facade to: "+_user.getDisplayNameWithID());
+			log(1, "Login save user name: " + _userName);
+			log(1, "set current user via facade to: "+_user.getDisplayNameWithID());
 			_facade.setCurrentUser(_user);
 			sun = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Login save user id: " + _user.getPdrId()); //$NON-NLS-1$
 			iLogger.log(sun);
-			System.out.println("Login save user id: " + _user.getPdrId());
+			log(1, "Login save user id: " + _user.getPdrId());
 			//			if (Activator.getDefault().getPreferenceStore().getBoolean("USER_SAVE_LOGIN")) //$NON-NLS-1$
 			// {
 			//				Activator.getDefault().getPreferenceStore().setValue("USER_SAVE_ID", user.getPdrId().toString()); //$NON-NLS-1$
@@ -712,39 +714,49 @@ public class LoginDialog extends TitleAreaDialog
 
 	private boolean loadUserData(String userName, String password)
 	{
-		System.out.println("Get user managers from facade");
+		log(1, "Get user managers from facade");
 		IUserManager um = Facade.getInstanz().getUserManager();
-		System.out.println("verify/create users");
+		log(1, "verify/create users");
 		um.verifyOrCreateUsers();
-		System.out.println("Get update managers from facade");
+		log(1, "Get update managers from facade");
 		IUpdateManager[] rums = Facade.getInstanz().getUpdateManagers();
 		String userID = null;
 		// TODO update einkommentieren
 		for (IUpdateManager rum : rums) {
 			try	{
-				System.out.println("Try to get user id from update manager based on user name "+userName);
+				log(1, "Try to get user id from update manager based on user name "+userName);
 				userID = rum.getUserId(
 						userName,
 						Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "PROJECT_ID",
 								AEConstants.PROJECT_ID, null));
-				System.out.println("update manager returned: "+userID);
+				log(1, "update manager returned: "+userID);
 			}
 			catch (Exception e)	{
-				System.out.println("Fail. Abort loading of user data.");
-				e.printStackTrace();
+				log(2, "Fail. Abort loading of user data.", e);
 				return false;
 			}
 		}
 		for (IUpdateManager rum : rums)	{
 			try	{
-				System.out.println("update user "+userID+" via update manager");
+				log(2, "update user "+userID+" via update manager");
 				rum.updateUsers(userID, password, null);
 			} catch (Exception e) {
-				System.out.println("update user failed. abort.");
-				e.printStackTrace();
+				log(2, "update user failed. abort.", e);
 				return false;
 			}
 		}
 		return true;
+	}
+	
+	private void log(int level, String msg) {
+		iLogger.log(new Status(level, Activator.PLUGIN_ID, msg));
+	}
+	
+	private void log(int level, String msg, Throwable e) {
+		if (e != null) {
+			iLogger.log(new Status(level, Activator.PLUGIN_ID, msg+"\n"+e.getMessage(), e));
+			//e.printStackTrace();
+		} else
+			log(level, msg);
 	}
 }
