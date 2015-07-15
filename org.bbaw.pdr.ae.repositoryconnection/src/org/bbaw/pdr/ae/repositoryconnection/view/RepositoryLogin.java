@@ -40,6 +40,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.IMessageProvider;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.FocusEvent;
@@ -62,14 +63,18 @@ import org.eclipse.swt.widgets.Text;
 public class RepositoryLogin extends TitleAreaDialog
 {
 
-	/** entered username and password. */
+	/** repository URL text field. */
 	private Text _repositoryURL;
-	// private Text repositoryPassword;
+	/** repository ID text field */
+	private Text _repoInstanceText;
+	/** project ID text field */
+	private Text _projectIDText;
 	/** The project id. */
 	private int _projectID = 0;
-
 	/** The repo instance id. */
 	private int _repoInstanceID = 0;
+
+	private IPreferenceStore prefs;
 
 	/** The parent shell. */
 	private Shell _parentShell;
@@ -95,6 +100,8 @@ public class RepositoryLogin extends TitleAreaDialog
 	{
 		super.create();
 
+		// get instance scope preference store for "org.bbaw.pdr.ae.common"
+		prefs = CommonActivator.getDefault().getPreferenceStore();
 		// Set the title
 		setTitle(NLMessages.getString("Dialog_repository_login_title"));
 		// Set the message
@@ -177,14 +184,14 @@ public class RepositoryLogin extends TitleAreaDialog
 		repoInstance.setText(NLMessages.getString("Dialog_repository_id"));
 		repoInstance.setLayoutData(new GridData());
 
-		final Text repoInstanceText = new Text(mainComposite, SWT.BORDER);
-		repoInstanceText.setLayoutData(new GridData());
+		_repoInstanceText = new Text(mainComposite, SWT.BORDER);
+		_repoInstanceText.setLayoutData(new GridData());
 		_repoInstanceID = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "REPOSITORY_ID",
 				AEConstants.REPOSITORY_ID, null);
-		repoInstanceText.setText("" + _repoInstanceID); //$NON-NLS-1$
-		((GridData) repoInstanceText.getLayoutData()).horizontalAlignment = SWT.FILL;
-		((GridData) repoInstanceText.getLayoutData()).grabExcessHorizontalSpace = true;
-		repoInstanceText.addFocusListener(new FocusListener()
+		_repoInstanceText.setText("" + _repoInstanceID); //$NON-NLS-1$
+		((GridData) _repoInstanceText.getLayoutData()).horizontalAlignment = SWT.FILL;
+		((GridData) _repoInstanceText.getLayoutData()).grabExcessHorizontalSpace = true;
+		_repoInstanceText.addFocusListener(new FocusListener()
 		{
 
 			@Override
@@ -197,18 +204,18 @@ public class RepositoryLogin extends TitleAreaDialog
 			{
 				try
 				{
-					if (repoInstanceText.getText().length() > 0)
+					if (_repoInstanceText.getText().length() > 0)
 					{
-						_repoInstanceID = Integer.parseInt(repoInstanceText.getText());
+						_repoInstanceID = Integer.parseInt(_repoInstanceText.getText());
 					}
 					else
 					{
-						_repoInstanceID = 0;
+						resetRepoID();
 					}
 				}
 				catch (NumberFormatException ex)
 				{
-					_repoInstanceID = 0;
+					resetRepoID();
 					String message = NLMessages.getString("View_pleaseEnterNumber"); //$NON-NLS-1$
 					MessageDialog.openInformation(_parentShell, NLMessages.getString("View_error"), message); //$NON-NLS-1$
 				}
@@ -219,15 +226,15 @@ public class RepositoryLogin extends TitleAreaDialog
 		projectIDLabel.setText(NLMessages.getString("Dialog_project_id"));
 		projectIDLabel.setLayoutData(new GridData());
 
-		final Text projectIDText = new Text(mainComposite, SWT.BORDER);
-		projectIDText.setLayoutData(new GridData());
+		_projectIDText = new Text(mainComposite, SWT.BORDER);
+		_projectIDText.setLayoutData(new GridData());
 		_projectID = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "PROJECT_ID",
 				AEConstants.PROJECT_ID, null);
-		projectIDText.setText("" + _projectID); //$NON-NLS-1$
-		((GridData) projectIDText.getLayoutData()).horizontalAlignment = SWT.FILL;
-		((GridData) projectIDText.getLayoutData()).grabExcessHorizontalSpace = true;
+		_projectIDText.setText("" + _projectID); //$NON-NLS-1$
+		((GridData) _projectIDText.getLayoutData()).horizontalAlignment = SWT.FILL;
+		((GridData) _projectIDText.getLayoutData()).grabExcessHorizontalSpace = true;
 
-		projectIDText.addFocusListener(new FocusListener()
+		_projectIDText.addFocusListener(new FocusListener()
 		{
 
 			@Override
@@ -240,19 +247,18 @@ public class RepositoryLogin extends TitleAreaDialog
 			{
 				try
 				{
-					if (projectIDText.getText().length() > 0)
+					if (_projectIDText.getText().length() > 0)
 					{
-						// XXX event does not seem to fire when save button is clicked.
-						_projectID = Integer.parseInt(projectIDText.getText());
+						_projectID = Integer.parseInt(_projectIDText.getText());
 					}
 					else
 					{
-						_projectID = 0;
+						resetProjectID();
 					}
 				}
 				catch (NumberFormatException ex)
 				{
-					_projectID = 0;
+					resetProjectID();
 					String message = NLMessages.getString("View_pleaseEnterNumber"); //$NON-NLS-1$
 					MessageDialog.openInformation(_parentShell, NLMessages.getString("View_error"), message); //$NON-NLS-1$
 				}
@@ -267,26 +273,36 @@ public class RepositoryLogin extends TitleAreaDialog
 			@Override
 			public void widgetSelected(final SelectionEvent e)
 			{
-				CommonActivator.getDefault().getPreferenceStore()
-						.putValue("REPOSITORY_ID", new Integer(AEConstants.REPOSITORY_ID).toString());
-				CommonActivator.getDefault().getPreferenceStore()
-						.putValue("PROJECT_ID", new Integer(AEConstants.PROJECT_ID).toString());
-				if (AEConstants.REPOSITORY_URL.trim().length() > 0)
-				{
-					CommonActivator.getDefault().getPreferenceStore()
-							.putValue("REPOSITORY_URL", AEConstants.REPOSITORY_URL);
-				}
-				_repositoryURL.setText(AEConstants.REPOSITORY_URL); //$NON-NLS-1$ //$NON-NLS-2$
-				_repoInstanceID = AEConstants.REPOSITORY_ID;
-				repoInstanceText.setText("" + new Integer(AEConstants.REPOSITORY_ID)); //$NON-NLS-1$ //$NON-NLS-2$
-				_projectID = AEConstants.PROJECT_ID;
-				projectIDText.setText("" + AEConstants.PROJECT_ID); //$NON-NLS-1$ //$NON-NLS-2$
-
+				resetAllInput();
 			}
 		});
 		parent.pack();
 
 		return parent;
+	}
+	
+	private void resetAllInput() {
+		resetURL();
+		resetRepoID();
+		resetProjectID();
+	}
+	
+	private void resetURL() {
+		if (AEConstants.REPOSITORY_URL.trim().length() > 0)
+			prefs.putValue("REPOSITORY_URL", AEConstants.REPOSITORY_URL);
+		_repositoryURL.setText(AEConstants.REPOSITORY_URL); //$NON-NLS-1$ //$NON-NLS-2$
+	}
+	
+	private void resetRepoID() {
+		prefs.putValue("REPOSITORY_ID", new Integer(AEConstants.REPOSITORY_ID).toString());
+		_repoInstanceID = AEConstants.REPOSITORY_ID;
+		_repoInstanceText.setText("" + new Integer(AEConstants.REPOSITORY_ID)); //$NON-NLS-1$ //$NON-NLS-2$
+	}
+	
+	private void resetProjectID() {
+		prefs.putValue("PROJECT_ID", new Integer(AEConstants.PROJECT_ID).toString());
+		_projectID = AEConstants.PROJECT_ID;
+		_projectIDText.setText("" + _projectID); //$NON-NLS-1$ //$NON-NLS-2$
 	}
 
 	/**
@@ -311,13 +327,8 @@ public class RepositoryLogin extends TitleAreaDialog
 			@Override
 			public void widgetSelected(final SelectionEvent event)
 			{
-				if (isValidInput())
-				{
+				if (isValidInput()) // XXX does nothing
 					okPressed();
-					saveInput();
-					close();
-
-				}
 			}
 		});
 		if (defaultButton)
@@ -402,16 +413,25 @@ public class RepositoryLogin extends TitleAreaDialog
 	@Override
 	protected final void okPressed()
 	{
-		saveInput();
-		// super.okPressed();
+		if (saveInput()) close();
 	}
 
 	/**
 	 * if user name and password are correct the identified current user is
 	 * saved as currentUser in facade.
 	 */
-	private void saveInput()
+	private boolean saveInput()
 	{
+		try {
+			_repoInstanceID = Integer.parseInt(_repoInstanceText.getText());
+			_projectID = Integer.parseInt(_projectIDText.getText());
+		} catch (NumberFormatException ex) {
+			resetProjectID();
+			String message = NLMessages.getString("View_pleaseEnterNumber"); //$NON-NLS-1$
+			MessageDialog.openInformation(_parentShell, NLMessages.getString("View_error"), message); //$NON-NLS-1$
+			return false;
+		}
+		
 		IStatus sname = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Repository Connection set to: "
 				+ _repositoryURL.getText().trim() + " repoInstanceID " + _repoInstanceID + " projectID " + _projectID); //$NON-NLS-1$
 		iLogger.log(sname);
@@ -425,5 +445,6 @@ public class RepositoryLogin extends TitleAreaDialog
 		CommonActivator.getDefault().getPreferenceStore().setValue("REPOSITORY_ID", _repoInstanceID);
 		// System.out.println("url set to " +
 		// Activator.getDefault().getPreferenceStore().getString("REPOSITORY_URL"));
+		return true;
 	}
 }
