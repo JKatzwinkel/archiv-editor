@@ -1484,7 +1484,8 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 		else if (localName.equals("recordInfo") || qName.equals("recordInfo") || localName.equals("mods:recordInfo")
 				|| qName.equals("mods:recordInfo"))
 		{
-			_record = new Record();
+			if (_record == null) 
+				_record = new Record();
 			_revision = new Revision(); 
 			_acc = false;
 		}
