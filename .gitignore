@@ -6,3 +6,19 @@ bin/
 .settings/
 org.bbaw.pdr.ae.standalone/org.bbaw.pdr.ae.featureProduct.product.launch
 
+ae-p2/
+metadata.tar.gz
+net.sf.vex.editor/
+net.sf.vex.toolkit/
+org.bbaw.pdr.ae.db.basex.711/
+org.bbaw.pdr.ae.help.nl1/.classpath
+org.bbaw.pdr.ae.help/.classpath
+org.bbaw.pdr.ae.standalone.product.build/plugin_customization.ini
+org.bbaw.pdr.ae.view.main/
+org.bbaw.pdr.ae.view.markup.stext/
+org.bbaw.pdr.ae.view.network/build.xml
+org.bbaw.pdr.ae.view.network/javaCompiler...args
+org.bbaw.pdr.ae.view.relationnetwork/
+org.bbaw.pdr.ae/build.xml
+org.bbaw.pdr.ae/javaCompiler...args
+tags
