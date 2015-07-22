@@ -369,6 +369,7 @@ public class PDRDateEditor extends Composite implements IAEBasicEditor
 	{
 		if (_parentEditor != null && !_loading)
 		{
+			System.out.println("pdr date editor calling parent editor saveinput: "+_parentEditor.getClass().getName());
 			_parentEditor.saveInput();
 		}
 

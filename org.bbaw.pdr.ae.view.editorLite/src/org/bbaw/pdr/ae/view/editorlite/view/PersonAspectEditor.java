@@ -2640,7 +2640,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 
 	public void saveInput()
 	{
-
+		System.out.println("PA saving input");
 		if (_selectedAspectEditor != null)
 		{
 			_selectedAspectEditor.saveInput();
@@ -2826,56 +2826,58 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 	@Override
 	public void validate()
 	{
-
+		System.out.println("Validating PA editor.");
 		if (_selectedTabItem != null)
 		{
 			boolean valid = true;
 			if (_selectedAspectEditor != null)
 			{
 				valid = _selectedAspectEditor.isValid();
+				System.out.println("Selected Aspecy Editor valid: "+valid+"; "+_selectedAspectEditor.getClass().getName());
 				_selectedAspectEditor.setSelected(true, valid);
 			}
-			else if (_selectedTabItem != null && _selectedTabItem.equals(_concurrenceTI))
-			{
-				valid = _currentPerson.isValid();
+			else if (_selectedTabItem != null) { 
+				if (_selectedTabItem.equals(_concurrenceTI)) {
+					valid = _currentPerson.isValid();
+					System.out.println("selected person valid: "+valid);
+				}
+				else if (_selectedTabItem.equals(_identifierTabItem)) {
+					valid = _currentPerson.isValid();
+					System.out.println("selected person valid: "+valid);
+				}
+				else if (_selectedTabItem.getData("aspects") == null) {
+					valid = true;
+				}
 			}
-			else if (_selectedTabItem != null && _selectedTabItem.equals(_identifierTabItem))
-			{
-				valid = _currentPerson.isValid();
-			}
-			else if (_selectedTabItem != null && _selectedTabItem.getData("aspects") == null)
-			{
-				valid = true;
-			}
-			else if (_selectedAspect != null)
-			{
+			else if (_selectedAspect != null) {
 				valid = _selectedAspect.isValid();
+				System.out.println("Selected aspect valid: "+valid);
 			}
-			if (valid)
-			{
+			
+			if (valid) {
 				Object oo = _selectedTabItem.getData("img");
 				if (oo != null && oo instanceof String)
 				{
 					_selectedTabItem.setImage(_imageReg.get((String) oo));
 				}
 				else
-				{
 					_selectedTabItem.setImage(null);
-				}
 				_invalidAspects.remove(_selectedAspect);
+				System.out.println("Remove selected aspect from invalid aspects: "+_selectedAspect);
 
 			}
-			else
-			{
-				if (!_invalidAspects.contains(_selectedAspect))
-				{
+			else { // if invalid
+				if (!_invalidAspects.contains(_selectedAspect))	{
 					_invalidAspects.add(_selectedAspect);
+					System.out.println("Add selected aspect to invalid aspects: "+_selectedAspect);
 				}
 				_selectedTabItem.setImage(_imageReg.get(IconsInternal.ERROR));
 			}
 			if (_saveButton != null)
 			{
 				_saveButton.setEnabled(_invalidAspects.isEmpty() && valid);
+				// TODO
+				//_saveButton.setEnabled(true);
 			}
 		}
 

@@ -1198,6 +1198,7 @@ public class AEAspectWidgetCustomizable extends Composite implements IAEBasicEdi
 	{
 		if (_parentEditor != null && !_loading)
 		{
+			System.out.println("ae aspect widget customizable calling parent editor validate "+_parentEditor.getClass().getName());
 			_parentEditor.validate();
 		}
 		
@@ -1208,6 +1209,7 @@ public class AEAspectWidgetCustomizable extends Composite implements IAEBasicEdi
 	{
 		if (_parentEditor != null && !_loading)
 		{
+			System.out.println("ae aspect widget customizable calling parent editor saveinput "+_parentEditor.getClass().getName());
 			_parentEditor.saveInput();
 		}
 

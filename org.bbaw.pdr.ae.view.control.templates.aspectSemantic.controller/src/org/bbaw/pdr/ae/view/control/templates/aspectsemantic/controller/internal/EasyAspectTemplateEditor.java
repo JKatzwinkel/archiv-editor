@@ -1159,6 +1159,7 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 		validate();
 	}
 	private void validateInternal() {
+		System.out.println("easy aspect tempate internal validation");
 		if (_aspect != null)
 		{
 			if (_aspect.getValidation() == null)
@@ -1174,7 +1175,10 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 			// FIXME relations
 			if (_template != null)
 			{
+				System.out.println("aspect valid: "+_aspect.isValid());
+				System.out.println("template valid: "+_template.isValid());
 				setValid(_aspect.isValid() && _template.isValid());
+				System.out.println("easy aspect template editor valid: "+this._isValid);
 			}
 
 		}

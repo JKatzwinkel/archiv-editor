@@ -927,6 +927,8 @@ public class AEMarkupWidget extends Composite implements IAEBasicEditor
 			// setDirty(true);
 //			validate();
 //			
+			System.out.println("Markup widget save input");
+			System.out.println("markup widget calling saveinput on parent editor "+_parentEditor.getClass().getName());
 			_parentEditor.saveInput();
 
 		}

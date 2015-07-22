@@ -708,11 +708,6 @@ public class MarkupDateEditorLine extends Composite implements IAEBasicEditor
 			{
 				_inputElement.removeAttribute("to");
 			}
-			setDirty(true);
-			if (isValid() && !_loading)
-			{
-				_parentEditor.saveInput();
-			}
 		}
 		else if (!_activationButton.getSelection() && _inputElement != null)
 		{
@@ -723,11 +718,13 @@ public class MarkupDateEditorLine extends Composite implements IAEBasicEditor
 			_inputElement.removeAttribute("notAfter");
 			_inputElement.setTextContent(null);
 //			_inputElement.getParentNode().removeChild(_inputElement);
-			setDirty(true);
-			if (isValid() && !_loading)
-			{
-				_parentEditor.saveInput();
-			}
+		}
+
+		setDirty(true);
+		if (isValid() && !_loading)
+		{
+			System.out.println("markup date editor line calling parent editor saveinput: "+_parentEditor.getClass().getName());
+			_parentEditor.saveInput();
 		}
 
 	}

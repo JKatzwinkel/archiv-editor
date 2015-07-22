@@ -509,6 +509,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 	@Override
 	public boolean isValid()
 	{
+		System.out.println("Validate aspect markup template");
 		validateInternal();
 		return _isValid;
 	}
@@ -569,6 +570,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 			{
 				if (!widget.isValid())
 				{
+					System.out.println("Widget invalid: "+widget.getConfigTemplate().getLabel()+" - "+widget.getConfigTemplate().getElement());
 					valid = false;
 					break;
 				}
