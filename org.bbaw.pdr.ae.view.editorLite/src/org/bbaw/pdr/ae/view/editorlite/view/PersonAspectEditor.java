@@ -32,6 +32,7 @@ package org.bbaw.pdr.ae.view.editorlite.view;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Vector;
 
 import org.bbaw.pdr.ae.common.AEConstants;
@@ -39,6 +40,7 @@ import org.bbaw.pdr.ae.common.AEVIEWConstants;
 import org.bbaw.pdr.ae.common.CommonActivator;
 import org.bbaw.pdr.ae.common.NLMessages;
 import org.bbaw.pdr.ae.common.icons.IconsInternal;
+import org.bbaw.pdr.ae.config.model.AspectConfigTemplate;
 import org.bbaw.pdr.ae.config.model.ComplexSemanticTemplate;
 import org.bbaw.pdr.ae.config.model.ConfigData;
 import org.bbaw.pdr.ae.config.model.ConfigItem;
@@ -384,7 +386,46 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 		{
 			createComplexTemplateTabs();
 		}
+		
 		loadValues();
+		
+		if (_currentPerson != null)
+		{
+			_pdrObjectsProvider.setOrderer(_ordererFactory.createAspectOrderer("aspect.semantic"));
+			_pdrObjectsProvider.setInput(_currentPerson);
+			Vector<OrderingHead> orderedAspects = _pdrObjectsProvider.getArrangedAspects();
+			
+			_currentAspects = _pdrObjectsProvider.getAspects();
+			
+			List<ConfigData> semantics = new ArrayList<ConfigData>(_facade.getConfigs().get(_configProvider)
+					.getChildren().get("aodl:semanticStm").getChildren().values());
+			Collections.sort(semantics);
+			
+			for (ConfigData cf : semantics)
+				System.out.println(cf.getLabel()+"; "+cf.getValue());
+			
+			for (OrderingHead oh : orderedAspects) 
+				if (oh.getValue() != null){
+					System.out.println("Process orderinghead "+oh.getValue());
+					for (IComplexAspectTemplateEditor editor : _complexAspectEditors) 
+						if (editor.getHandledSemantics().contains(oh.getValue())) {
+							System.out.println(" capable editor supports semantics: "+editor.getHandledSemantics());
+							
+							
+							
+							for (Aspect a : oh.getAspects()) {
+								
+							}
+							
+						}
+					
+				
+			    }
+			
+		} else this.close();
+		
+		
+		
 		loadPersonValues();
 		if (_aspectTemplateController != null && _complexAspectEditors != null)
 		{
@@ -1573,6 +1614,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 		{
 			if (label != null)
 			{
+				System.out.println("Processing complex template editor label: "+label);
 				CTabItem tabItem = new CTabItem(_tabFolder, SWT.NONE);
 				tabItem.setText(label);
 				tabItem.setImage(_imageReg.get(IconsInternal.TEMPLATES));
@@ -1583,6 +1625,17 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 				ComplexSemanticTemplate cst = loadComplexSemanticTemplate(label);
 				if (cst != null)
 				{
+					System.out.println("Complex semantic template loaded: "+cst.getLabel()+", "+cst.getDescription());
+					for (ConfigData cf : cst.getChildren().values()) {
+						System.out.println(" "+cf.getLabel()+"; "+cf.getValue());
+						for (Entry<String, ConfigData> e :  cf.getChildren().entrySet() ) { 
+							System.out.println("  "+e.getKey()+": "+e.getValue().getLabel()+"; "+e.getValue().getValue());
+							AspectConfigTemplate t = (AspectConfigTemplate)e.getValue();
+							System.out.println("   "+t.getElement());
+						}
+						
+					}
+						//System.out.println(((AspectConfigTemplate)cf).getElement());
 					tabItem.setData("tip", cst.getDescription());
 				}
 				Composite complexEditorComposite = new Composite(_tabFolder, SWT.NONE);
@@ -1631,6 +1684,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 						contentComp, SWT.NONE);
 				if (editor != null)
 				{
+					System.out.println("PA editor: adding complex template editor "+editor.getHandledSemantics());
 					_complexAspectEditors.add(editor);
 					editor.addCustomPaintListener(_paintListener);
 					editor.addEasyEditorSelectionListener(_selectionListener);
@@ -2504,32 +2558,37 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 				_currentAspects.add(_editingAspect);
 				// FIXME mehr steuerung!
 			}
+			
 			if (_facade.getConfigs().containsKey(_configProvider))
 			{
 				List<ConfigData> semantics = new ArrayList<ConfigData>(_facade.getConfigs().get(_configProvider)
 						.getChildren().get("aodl:semanticStm").getChildren().values());
 				Collections.sort(semantics);
 				List<ConfigData> emptySemantics = new ArrayList<ConfigData>(semantics.size());
+				System.out.println("semantic configs found: "+semantics.size());
 				for (ConfigData cf : semantics)
 				{
 					if (cf instanceof ConfigItem && !((ConfigItem) cf).isIgnore())
 					{
+						System.out.println("checking out semantic config item: "+cf.getValue()+"; "+cf.getLabel());
 						boolean isComplex = false;
 						if (_aspectTemplateController != null
 								&& _aspectTemplateController.getComplexAspectTemplateSemantics() != null)
 						{
 							for (String s : _aspectTemplateController.getComplexAspectTemplateSemantics())
 							{
+								System.out.println(" comparing to complex template semantic: "+s);
 								if (cf.getValue().equals(s))
 								{
 									isComplex = true;
+									System.out.println("  is a complex template");
 									break;
 								}
 							}
 						}
 
 						boolean exists = false;
-						for (OrderingHead oh : orderedAspects)
+						/*for (OrderingHead oh : orderedAspects)
 						{
 							if (oh.getValue() != null)
 							{
@@ -2544,7 +2603,21 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 									break;
 								}
 							}
-						}
+						}*/
+						
+						/*for (OrderingHead oh : orderedAspects) 
+							if (oh.getValue() != null){
+								System.out.println("Process orderinghead "+oh.getValue());
+								for (IComplexAspectTemplateEditor editor : _complexAspectEditors) 
+									if (editor.getHandledSemantics().contains(oh.getValue())) {
+										System.out.println(" capable editor supports semantics: "+editor.getHandledSemantics());
+										
+									}
+								
+							
+						    }*/
+						
+						
 						if (!exists && !isComplex)
 						{
 							emptySemantics.add(cf);
@@ -2590,6 +2663,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 			// System.out.println("testing semantic " + oh.getValue());
 			if (editor.getHandledSemantics().contains(oh.getValue()))
 			{
+				// XXX we can't simply set the entire oh as input. another complex template might support its category! 
 				editor.setInput(oh);
 				((Composite) editor).getParent().getParent().layout(true,true);
 				Composite c = ((Composite) editor).getParent().getParent();

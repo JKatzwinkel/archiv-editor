@@ -41,6 +41,7 @@ public class ComplexAspectTemplateBuilder {
 			ComplexSemanticTemplate cst,
 			Person currentPerson, Composite parentComposite, int style)
 	{
+		System.out.println("Build complex template editor.");
 		ComplexAspectTemplateEditor editor = new ComplexAspectTemplateEditor(parentEditor, cst, currentPerson,
 				parentComposite, style);
 		return editor;

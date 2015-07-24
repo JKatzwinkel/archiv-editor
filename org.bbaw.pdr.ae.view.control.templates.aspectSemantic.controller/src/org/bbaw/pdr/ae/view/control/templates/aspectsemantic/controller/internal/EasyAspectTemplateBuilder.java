@@ -45,11 +45,14 @@ public class EasyAspectTemplateBuilder
 			Person currentPerson, Aspect currentAspect,
 			Composite control, int style)
 	{
+		System.out.println("build easy template editor..");
 		EasyAspectTemplateEditor editor = new EasyAspectTemplateEditor(parentEditor, currentPerson, currentAspect,
 				control,
 				style);
+		System.out.println("easy template editor: "+editor.getToolTipText());
 		AspectMarkupTemplate template = new AspectSemanticTemplateBuilder().buildTemplate(editor, semanticTemplate,
 				editor.getMarkupControl());
+		System.out.println("assign markup template to template editor: "+template);
 		editor.setMarkupTemplate(template);
 		return editor;
 	}

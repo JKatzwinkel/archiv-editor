@@ -435,6 +435,7 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 
 	private void createEditor()
 	{
+		System.out.println("create easy aspect template editor.");
 		if (_facade.getConfigs() != null)
 		{
 			if (!_facade.getConfigs().containsKey(_markupProvider))
@@ -810,6 +811,7 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 
 	private void loadAspect()
 	{
+		System.out.println("easy template editor: load aspect");
 		_group.setText(_aspect.getDisplayName() + " - ID: " + _aspect.getPdrId().toString());
 
 		_template.setInput(_aspect);

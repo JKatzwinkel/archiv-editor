@@ -157,7 +157,6 @@ public class ComplexAspectTemplateEditor extends Composite implements
 		Collections.sort(semantics);
 		for (ConfigData cd : semantics)
 		{
-			cd.getValue();
 			SemanticTemplate semanticTemplate = (SemanticTemplate) cd;
 			if (!semanticTemplate.isIgnore())
 			{
@@ -568,7 +567,7 @@ public class ComplexAspectTemplateEditor extends Composite implements
 							orderingHead.setAspects(aspects);
 						}
 						aspects.insertElementAt(a, 0);
-						ComplexAspectEditor.this.loadOrderingHead(orderingHead);
+						ComplexAspectEditor.this.loadOrderingHead();
 
 						ComplexAspectEditor.this.resize();
 						setSelected(true, false);
@@ -578,7 +577,7 @@ public class ComplexAspectTemplateEditor extends Composite implements
 					@Override
 					public void widgetDefaultSelected(SelectionEvent e)
 					{
-						// TODO Auto-generated method stub
+						// 
 
 					}
 				});
@@ -787,18 +786,19 @@ public class ComplexAspectTemplateEditor extends Composite implements
 		@Override
 		public void setInput(Object input) {
 			
-
+			System.out.println("complex editor: setting input..");
 			if (input != null && input instanceof OrderingHead)
 			{
+				System.out.println("input is orderinghead instance. clearing editors..");
 				eds.clear();
 				orderingHead = (OrderingHead) input;
-				loadOrderingHead(orderingHead);
+				loadOrderingHead();
 
 			}
 			
 		}
 
-		private void loadOrderingHead(OrderingHead orderingHead2)
+		private void loadOrderingHead()
 		{
 			if (editorComposite != null)
 			{
@@ -811,6 +811,8 @@ public class ComplexAspectTemplateEditor extends Composite implements
 			Aspect a;
 			// System.out.println("oh.aspects.size " +
 			// orderingHead.getAspects().size());
+			System.out.println("complex aspect editor: loading ordering head "+orderingHead.getLabel()+"; "+orderingHead.getValue()+"; "+orderingHead.getDescription());
+			System.out.println(" containing "+orderingHead.getAspects().size()+" aspects");
 			for (int i = 0; i < orderingHead.getAspects().size(); i++)
 			{
 				// System.out.println("for index " + i);
@@ -821,6 +823,8 @@ public class ComplexAspectTemplateEditor extends Composite implements
 				eds.add(editor);
 				editor.addCustomPaintListener(paintListener);
 				editor.addSelectionListener(selectionListener);
+				// XXX this must not be done unless the aspect matches the template!
+				System.out.println("complex editor: create easy aspect editor for aspect "+a.getDisplayName()+" ("+a.getNotification());
 				editor.setInput(a);
 				// editor.layout();
 				editor.setSelected(false, editor.isValid());
@@ -878,7 +882,7 @@ public class ComplexAspectTemplateEditor extends Composite implements
 							if (((PersonAspectEditor) _parentEditor).deleteAspect(a))
 							{
 								orderingHead.getAspects().remove(a);
-								ComplexAspectEditor.this.loadOrderingHead(orderingHead);
+								ComplexAspectEditor.this.loadOrderingHead();
 							}
 						}
 					}

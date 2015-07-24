@@ -160,6 +160,8 @@ public class AEAspectWidgetCustomizable extends Composite implements IAEBasicEdi
 			int style)
 	{
 		super(aspectTemplate, SWT.NONE);
+		
+		System.out.println("create new customizable aspect widget for aspect template "+aspectTemplate);
 
 		super.setLayoutData(new GridData());
 		((GridData) super.getLayoutData()).horizontalAlignment = SWT.FILL;

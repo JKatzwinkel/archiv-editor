@@ -143,24 +143,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 				_notificationDOM = _aspect.getNotificationAsDOM();
 //				System.out.println("_notificationDOM");
 			}
-			catch (ParserConfigurationException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch (SAXException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch (IOException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			catch (XMLStreamException e)
-			{
-				// TODO Auto-generated catch block
+			catch (Exception e) {
 				e.printStackTrace();
 			}
 
@@ -172,17 +155,18 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 					_widgets.size());
 			Collections.sort(_widgets);
 			for (int i = 0; i < nodes.getLength(); i++)
-			{
 				if (!nodes.item(i).getNodeName().equals("notification"))
-				{
 					unprocessedItems.add(nodes.item(i));
-				}
 
-			}
+			System.out.println("get ready to process aspect notification elements: "+unprocessedItems.size());
+			System.out.println("widgets: "+_widgets.size());
 			for (Node n : unprocessedItems)
 			{
+				System.out.println("find best match widget for node: "+n.getTextContent());
 				for (AEAspectWidgetCustomizable w : _widgets)
 				{
+					System.out.println(" try widget "+w+"; type "+w.getWidgetType());
+					System.out.println("  match value: "+w.matchesInput(n));
 					if (w.getWidgetType() <= 4 && w.matchesInput(n) > 0)
 					{
 						if (matchingTable.containsKey(n))
@@ -196,6 +180,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 								oldMuliIndex = index;
 							}
 							int currentMatch = w.matchesInput(n);
+							System.out.println("  widget - markup match: "+currentMatch);
 							int currentMultiIndex = 0;
 							if (multiInputTable.containsKey(w))
 							{
@@ -250,6 +235,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 					}
 				}
 			}
+			System.out.println("notification elements still unprocessed: "+unprocessedItems.size());
 			for (Node n : unprocessedItems)
 			{
 				if (matchingTable.containsKey(n))
@@ -483,6 +469,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 
 	public void addWidget(AEAspectWidgetCustomizable widget)
 	{
+		System.out.println("aspect markup template add widget: "+widget+"; type "+widget.getWidgetType());
 		_widgets.add(widget);
 
 		Collections.sort(_widgets);
@@ -942,6 +929,7 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 	public void setInput(Object input) {
 		if (input instanceof Aspect)
 		{
+			System.out.println("aspect markup template: set aspect");
 			setAspect((Aspect)input);
 			validateInternal();
 		}

@@ -53,6 +53,7 @@ public class AspectSemanticTemplateBuilder
 
 	public AspectMarkupTemplate buildTemplate(IEasyAspectEditor editor, SemanticTemplate semanticTemplate, Composite control)
 	{
+		System.out.println("Build AspectMarkupTemplate for semantic template "+semanticTemplate.getLabel());
 		if (editor.getAspect() != null)
 		{
 			_maywrite = new UserRichtsChecker().mayWrite(editor.getAspect());
@@ -103,11 +104,14 @@ public class AspectSemanticTemplateBuilder
 		if (configTemplates != null)
 		{
 			Collections.sort(configTemplates);
+			System.out.println("number of ConfigData template configs: "+configTemplates.size());
 			for (ConfigData configD : configTemplates)
 			{
 				if (!configD.isIgnore())
 				{
+					System.out.println("configData: "+configD.getLabel());
 					AspectConfigTemplate configTemplate = (AspectConfigTemplate) configD;
+					System.out.println("markup: "+configTemplate.getElement()+"/"+configTemplate.getType()+"/"+configTemplate.getSubtype()+"/"+configTemplate.getRole());
 					AEAspectWidgetCustomizable widget = new AEAspectWidgetCustomizable(editor, aspectTemplate,
 							configTemplate, _maywrite, SWT.NONE);
 					widget.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false, configTemplate
