@@ -596,6 +596,10 @@ public class AspectMarkupTemplate extends Composite implements IAEBasicEditor
 				Collections.sort(_widgets);
 				Node lastElement = null;
 				Element notificationElement = (Element) _notificationDOM.getElementsByTagName("notification").item(0);
+				// dump entire notification node list
+				while (notificationElement.hasChildNodes())
+					notificationElement.removeChild(notificationElement.getChildNodes().item(0));
+				// rebuild from scratch
 				for (AEAspectWidgetCustomizable w : _widgets)
 				{
 						if (w.getWidgetType() < 4 && w.getInput() instanceof Vector<?> && !w.getInput().isEmpty()

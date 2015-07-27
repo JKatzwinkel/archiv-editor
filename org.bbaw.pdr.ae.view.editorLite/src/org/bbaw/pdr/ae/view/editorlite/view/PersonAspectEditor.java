@@ -389,7 +389,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 		
 		loadValues();
 		
-		if (_currentPerson != null)
+		/*if (_currentPerson != null)
 		{
 			_pdrObjectsProvider.setOrderer(_ordererFactory.createAspectOrderer("aspect.semantic"));
 			_pdrObjectsProvider.setInput(_currentPerson);
@@ -422,7 +422,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 				
 			    }
 			
-		} else this.close();
+		} else this.close();*/
 		
 		
 		
@@ -2588,7 +2588,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 						}
 
 						boolean exists = false;
-						/*for (OrderingHead oh : orderedAspects)
+						for (OrderingHead oh : orderedAspects)
 						{
 							if (oh.getValue() != null)
 							{
@@ -2603,7 +2603,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 									break;
 								}
 							}
-						}*/
+						}
 						
 						/*for (OrderingHead oh : orderedAspects) 
 							if (oh.getValue() != null){
