@@ -786,10 +786,10 @@ public class ComplexAspectTemplateEditor extends Composite implements
 		@Override
 		public void setInput(Object input) {
 			
-			System.out.println("complex editor: setting input..");
+			//System.out.println("complex editor: setting input..");
 			if (input != null && input instanceof OrderingHead)
 			{
-				System.out.println("input is orderinghead instance. clearing editors..");
+				//System.out.println("input is orderinghead instance. clearing editors..");
 				eds.clear();
 				orderingHead = (OrderingHead) input;
 				loadOrderingHead();
@@ -811,8 +811,8 @@ public class ComplexAspectTemplateEditor extends Composite implements
 			Aspect a;
 			// System.out.println("oh.aspects.size " +
 			// orderingHead.getAspects().size());
-			System.out.println("complex aspect editor: loading ordering head "+orderingHead.getLabel()+"; "+orderingHead.getValue()+"; "+orderingHead.getDescription());
-			System.out.println(" containing "+orderingHead.getAspects().size()+" aspects");
+			//System.out.println("complex aspect editor: loading ordering head "+orderingHead.getLabel()+"; "+orderingHead.getValue()+"; "+orderingHead.getDescription());
+			//System.out.println(" containing "+orderingHead.getAspects().size()+" aspects");
 			for (int i = 0; i < orderingHead.getAspects().size(); i++)
 			{
 				// System.out.println("for index " + i);
@@ -824,7 +824,7 @@ public class ComplexAspectTemplateEditor extends Composite implements
 				editor.addCustomPaintListener(paintListener);
 				editor.addSelectionListener(selectionListener);
 				// XXX this must not be done unless the aspect matches the template!
-				System.out.println("complex editor: create easy aspect editor for aspect "+a.getDisplayName()+" ("+a.getNotification());
+				//System.out.println("complex editor: create easy aspect editor for aspect "+a.getDisplayName()+" ("+a.getNotification());
 				editor.setInput(a);
 				// editor.layout();
 				editor.setSelected(false, editor.isValid());

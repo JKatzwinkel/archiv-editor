@@ -161,7 +161,7 @@ public class AEAspectWidgetCustomizable extends Composite implements IAEBasicEdi
 	{
 		super(aspectTemplate, SWT.NONE);
 		
-		System.out.println("create new customizable aspect widget for aspect template "+aspectTemplate);
+		//System.out.println("create new customizable aspect widget for aspect template "+aspectTemplate);
 
 		super.setLayoutData(new GridData());
 		((GridData) super.getLayoutData()).horizontalAlignment = SWT.FILL;
@@ -1200,7 +1200,7 @@ public class AEAspectWidgetCustomizable extends Composite implements IAEBasicEdi
 	{
 		if (_parentEditor != null && !_loading)
 		{
-			System.out.println("ae aspect widget customizable calling parent editor validate "+_parentEditor.getClass().getName());
+			//System.out.println("ae aspect widget customizable calling parent editor validate "+_parentEditor.getClass().getName());
 			_parentEditor.validate();
 		}
 		
@@ -1211,7 +1211,7 @@ public class AEAspectWidgetCustomizable extends Composite implements IAEBasicEdi
 	{
 		if (_parentEditor != null && !_loading)
 		{
-			System.out.println("ae aspect widget customizable calling parent editor saveinput "+_parentEditor.getClass().getName());
+			//System.out.println("ae aspect widget customizable calling parent editor saveinput "+_parentEditor.getClass().getName());
 			_parentEditor.saveInput();
 		}
 

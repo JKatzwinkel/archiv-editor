@@ -1614,7 +1614,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 		{
 			if (label != null)
 			{
-				System.out.println("Processing complex template editor label: "+label);
+				//System.out.println("Processing complex template editor label: "+label);
 				CTabItem tabItem = new CTabItem(_tabFolder, SWT.NONE);
 				tabItem.setText(label);
 				tabItem.setImage(_imageReg.get(IconsInternal.TEMPLATES));
@@ -1625,16 +1625,15 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 				ComplexSemanticTemplate cst = loadComplexSemanticTemplate(label);
 				if (cst != null)
 				{
-					System.out.println("Complex semantic template loaded: "+cst.getLabel()+", "+cst.getDescription());
-					for (ConfigData cf : cst.getChildren().values()) {
-						System.out.println(" "+cf.getLabel()+"; "+cf.getValue());
-						for (Entry<String, ConfigData> e :  cf.getChildren().entrySet() ) { 
-							System.out.println("  "+e.getKey()+": "+e.getValue().getLabel()+"; "+e.getValue().getValue());
-							AspectConfigTemplate t = (AspectConfigTemplate)e.getValue();
-							System.out.println("   "+t.getElement());
-						}
-						
-					}
+					//System.out.println("Complex semantic template loaded: "+cst.getLabel()+", "+cst.getDescription());
+					//for (ConfigData cf : cst.getChildren().values()) {
+						//System.out.println(" "+cf.getLabel()+"; "+cf.getValue());
+						//for (Entry<String, ConfigData> e :  cf.getChildren().entrySet() ) { 
+							//System.out.println("  "+e.getKey()+": "+e.getValue().getLabel()+"; "+e.getValue().getValue());
+							//AspectConfigTemplate t = (AspectConfigTemplate)e.getValue();
+							//System.out.println("   "+t.getElement());
+						//}	
+					//}
 						//System.out.println(((AspectConfigTemplate)cf).getElement());
 					tabItem.setData("tip", cst.getDescription());
 				}
@@ -1684,7 +1683,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 						contentComp, SWT.NONE);
 				if (editor != null)
 				{
-					System.out.println("PA editor: adding complex template editor "+editor.getHandledSemantics());
+					//System.out.println("PA editor: adding complex template editor "+editor.getHandledSemantics());
 					_complexAspectEditors.add(editor);
 					editor.addCustomPaintListener(_paintListener);
 					editor.addEasyEditorSelectionListener(_selectionListener);
@@ -2565,23 +2564,23 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 						.getChildren().get("aodl:semanticStm").getChildren().values());
 				Collections.sort(semantics);
 				List<ConfigData> emptySemantics = new ArrayList<ConfigData>(semantics.size());
-				System.out.println("semantic configs found: "+semantics.size());
+				//System.out.println("semantic configs found: "+semantics.size());
 				for (ConfigData cf : semantics)
 				{
 					if (cf instanceof ConfigItem && !((ConfigItem) cf).isIgnore())
 					{
-						System.out.println("checking out semantic config item: "+cf.getValue()+"; "+cf.getLabel());
+						//System.out.println("checking out semantic config item: "+cf.getValue()+"; "+cf.getLabel());
 						boolean isComplex = false;
 						if (_aspectTemplateController != null
 								&& _aspectTemplateController.getComplexAspectTemplateSemantics() != null)
 						{
 							for (String s : _aspectTemplateController.getComplexAspectTemplateSemantics())
 							{
-								System.out.println(" comparing to complex template semantic: "+s);
+								//System.out.println(" comparing to complex template semantic: "+s);
 								if (cf.getValue().equals(s))
 								{
 									isComplex = true;
-									System.out.println("  is a complex template");
+									//System.out.println("  is a complex template");
 									break;
 								}
 							}
@@ -2714,7 +2713,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 
 	public void saveInput()
 	{
-		System.out.println("PA saving input");
+		//System.out.println("PA saving input");
 		if (_selectedAspectEditor != null)
 		{
 			_selectedAspectEditor.saveInput();
@@ -2900,24 +2899,24 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 	@Override
 	public void validate()
 	{
-		System.out.println("Validating PA editor.");
+		//System.out.println("Validating PA editor.");
 		if (_selectedTabItem != null)
 		{
 			boolean valid = true;
 			if (_selectedAspectEditor != null)
 			{
 				valid = _selectedAspectEditor.isValid();
-				System.out.println("Selected Aspecy Editor valid: "+valid+"; "+_selectedAspectEditor.getClass().getName());
+				//System.out.println("Selected Aspecy Editor valid: "+valid+"; "+_selectedAspectEditor.getClass().getName());
 				_selectedAspectEditor.setSelected(true, valid);
 			}
 			else if (_selectedTabItem != null) { 
 				if (_selectedTabItem.equals(_concurrenceTI)) {
 					valid = _currentPerson.isValid();
-					System.out.println("selected person valid: "+valid);
+					//System.out.println("selected person valid: "+valid);
 				}
 				else if (_selectedTabItem.equals(_identifierTabItem)) {
 					valid = _currentPerson.isValid();
-					System.out.println("selected person valid: "+valid);
+					//System.out.println("selected person valid: "+valid);
 				}
 				else if (_selectedTabItem.getData("aspects") == null) {
 					valid = true;
@@ -2925,7 +2924,7 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 			}
 			else if (_selectedAspect != null) {
 				valid = _selectedAspect.isValid();
-				System.out.println("Selected aspect valid: "+valid);
+				//System.out.println("Selected aspect valid: "+valid);
 			}
 			
 			if (valid) {
@@ -2937,13 +2936,13 @@ public class PersonAspectEditor extends TitleAreaDialog implements IAEBasicEdito
 				else
 					_selectedTabItem.setImage(null);
 				_invalidAspects.remove(_selectedAspect);
-				System.out.println("Remove selected aspect from invalid aspects: "+_selectedAspect);
+				//System.out.println("Remove selected aspect from invalid aspects: "+_selectedAspect);
 
 			}
 			else { // if invalid
 				if (!_invalidAspects.contains(_selectedAspect))	{
 					_invalidAspects.add(_selectedAspect);
-					System.out.println("Add selected aspect to invalid aspects: "+_selectedAspect);
+					//System.out.println("Add selected aspect to invalid aspects: "+_selectedAspect);
 				}
 				_selectedTabItem.setImage(_imageReg.get(IconsInternal.ERROR));
 			}

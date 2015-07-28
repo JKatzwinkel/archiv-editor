@@ -435,7 +435,7 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 
 	private void createEditor()
 	{
-		System.out.println("create easy aspect template editor.");
+		//System.out.println("create easy aspect template editor.");
 		if (_facade.getConfigs() != null)
 		{
 			if (!_facade.getConfigs().containsKey(_markupProvider))
@@ -811,7 +811,7 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 
 	private void loadAspect()
 	{
-		System.out.println("easy template editor: load aspect");
+		//System.out.println("easy template editor: load aspect");
 		_group.setText(_aspect.getDisplayName() + " - ID: " + _aspect.getPdrId().toString());
 
 		_template.setInput(_aspect);
@@ -1161,7 +1161,7 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 		validate();
 	}
 	private void validateInternal() {
-		System.out.println("easy aspect tempate internal validation");
+		//System.out.println("easy aspect tempate internal validation");
 		if (_aspect != null)
 		{
 			if (_aspect.getValidation() == null)
@@ -1177,10 +1177,10 @@ public class EasyAspectTemplateEditor extends Composite implements IAEBasicEdito
 			// FIXME relations
 			if (_template != null)
 			{
-				System.out.println("aspect valid: "+_aspect.isValid());
-				System.out.println("template valid: "+_template.isValid());
+				//System.out.println("aspect valid: "+_aspect.isValid());
+				//System.out.println("template valid: "+_template.isValid());
 				setValid(_aspect.isValid() && _template.isValid());
-				System.out.println("easy aspect template editor valid: "+this._isValid);
+				//System.out.println("easy aspect template editor valid: "+this._isValid);
 			}
 
 		}

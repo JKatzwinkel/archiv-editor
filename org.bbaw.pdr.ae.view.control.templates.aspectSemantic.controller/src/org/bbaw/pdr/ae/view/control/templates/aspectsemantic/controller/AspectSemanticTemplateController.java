@@ -136,7 +136,7 @@ public class AspectSemanticTemplateController implements IAEAspectSemanticEditor
 			Person currentPerson, Composite parentComposite,
 			int style)
 	{
-		System.out.println("controller: get complex template editor for: "+label);
+		//System.out.println("controller: get complex template editor for: "+label);
 		String configProvider = getConfigProvider();
 		Usage u = Facade.getInstanz().getConfigs().get(configProvider).getUsage();
 		if (u.getTemplates() != null && u.getTemplates().getChildren() != null
@@ -159,7 +159,7 @@ public class AspectSemanticTemplateController implements IAEAspectSemanticEditor
 					if ((c.getValue() != null && c.getValue().equals(label)) || (c.getLabel() != null && c.getLabel().equals(label)) && c instanceof ComplexSemanticTemplate)
 					{
 						ComplexSemanticTemplate cst = (ComplexSemanticTemplate) c;
-						System.out.println("found matching complex template: "+cst.getLabel()+"; "+cst.getDescription());
+						//System.out.println("found matching complex template: "+cst.getLabel()+"; "+cst.getDescription());
 						return _complexAspectTemplateBuilder.buildComplexAspectEditor(parentEditor, cst, currentPerson,
 								parentComposite, style);
 					}
