@@ -21,5 +21,6 @@ Import-Package: org.bbaw.pdr.ae.common,
  org.bbaw.pdr.ae.model.view,
  org.bbaw.pdr.ae.view.control.customSWTWidges,
  org.bbaw.pdr.ae.view.control.interfaces,
- org.bbaw.pdr.ae.view.main.dialogs
+ org.bbaw.pdr.ae.view.main.dialogs,
+ org.bbaw.pdr.allies.client
 Export-Package: org.bbaw.pdr.ae.repositoryconnection.view

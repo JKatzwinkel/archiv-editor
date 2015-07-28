@@ -1467,11 +1467,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * Object IDs are then extracted from those very XML strings which have themselves been just queried by ID.
 	 * User objects are then divided into two sets, one for users to be ingested into remote, one for
 	 * standard users with IDs lower than 10, which are expected to be present in every project.
-	 * The collection of users to be ingested is being ingested first, the collection of standard users
+	 * <strike>The collection of users to be ingested is being ingested first, the collection of standard users
 	 * is ingested later in method {@link #checkAndInjestStandardUsers(Vector, String, String)},
 	 * which does not process temp to persistent ID mapping returned by server.
 	 * (To tell apart standard users from custom local users, their IDs are again extracted from
-	 * XML strings using regular expressions...)
+	 * XML strings using regular expressions...)</strike>
 	 * Finally, persistent user IDs as returned from the server at XML ingest are propagated
 	 * in the local DB.
 	 * </p>
@@ -1551,8 +1551,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			if (modifiedUserIds != null && !modifiedUserIds.isEmpty()) 
 				_idService.insertIdModifiedObject(modifiedUserIds, "pdrUo");
-			if (!standardUsers.isEmpty()) 
-				checkAndInjestStandardUsers(standardUsers, userId, password);
+			//if (!standardUsers.isEmpty()) 
+				//checkAndInjestStandardUsers(standardUsers, userId, password);
 		}
 		log(0, "Done uploading new users");
 	}
@@ -2363,16 +2363,19 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 
 	
-	private void log(int level, String msg) {
-		iLogger.log(new Status(level, Activator.PLUGIN_ID, msg));
+	private Status log(int level, String msg) {
+		Status status = new Status(level, Activator.PLUGIN_ID, msg);
+		iLogger.log(status);
+		return status;
 	}
 	
-	private void log(int level, String msg, Throwable e) {
+	private Status log(int level, String msg, Throwable e) {
 		if (e != null) {
-			iLogger.log(new Status(level, Activator.PLUGIN_ID, msg+"\n"+e.getMessage(), e));
-			//e.printStackTrace();
+			Status status = new Status(level, Activator.PLUGIN_ID, msg+"\n"+e.getMessage(), e);
+			iLogger.log(status);
+			return status;
 		} else
-			log(level, msg);
+			return log(level, msg);
 	}
 	
 
@@ -2396,12 +2399,25 @@ public class RepositoryUpdateManager implements IUpdateManager
 		_projectId = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "PROJECT_ID",
 				AEConstants.PROJECT_ID, null);
 		Configuration.getInstance().setAxis2BaseURL(url.toString());
+
+		// check if remote is even a PDR server
+		try {
+			Repository.getTime();
+		} catch (Exception e) {
+			log(2, "Error: "+e.getMessage(), e);
+			return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
+		}
+		
 		Configuration.getInstance().setPDRUser(userID, password);
 		log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "url " + url.toString() + " userID " + userID + " p "
-				+ password);
+				+ "***");
 		iLogger.log(log);
 		boolean success = true;
-		HashMap<String, Boolean> statuses = new HashMap<String, Boolean>();  
+		HashMap<String, Boolean> statuses = new HashMap<String, Boolean>(); 
+		
+		
+		
+		
 		/////////////////////
 		// injest new objects
 		/////////////////////
@@ -2480,9 +2496,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 		} catch (PDRAlliesClientException e) {
 			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception in ALLIES while ingesting new local objects", e);
 			statuses.put("ingest new local objects", false);
-			return updateStatus;
+			return log(2, "Exception in ALLIES while ingesting new local objects", e);
 		} catch (Exception e) {
 			success = false;
 			log(IStatus.WARNING, "Exception while ingesting new local objects: ", e);
@@ -2511,9 +2526,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			log(0, "Done ingesting modified configurations");
 			statuses.put("update modified configs", true);
 		} catch (PDRAlliesClientException e1) {
-			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception during modified configurations ingest into repo: ", e1);
+			updateStatus = log(2, "Exception during modified configurations ingest into repo: ", e1);
 			statuses.put("update modified configs", false);
 		} catch (Exception e1) {
 			success = false;
@@ -2537,9 +2551,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(0, "Done ingesting modified users into repo");
 			statuses.put("update modified users", true);
 		} catch (PDRAlliesClientException e1) {
-			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception during ingest of modified users", e1);
+			updateStatus = log(2, "Exception during ingest of modified users", e1);
 			statuses.put("update modified users", false);
 		} catch (Exception e1) {
 			success = false;
@@ -2560,9 +2573,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(0, "Done ingesting modified references");
 			statuses.put("update modified mods", true);
 		} catch (PDRAlliesClientException e1) {
-			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception in ALLIES during ingest of modified references into repo: ", e1);
+			updateStatus = log(2, "Exception in ALLIES during ingest of modified references into repo: ", e1);
 			statuses.put("update modified mods", false);
 		} catch (Exception e1) {
 			success = false;
@@ -2584,9 +2596,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(0, "Done ingesting modified person objects");
 			statuses.put("update modified podl", true);
 		} catch (PDRAlliesClientException e1) {
-			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception in ALLIES during ingest of modified persons into repo: ", e1);
+			updateStatus = log(2, "Exception in ALLIES during ingest of modified persons into repo: ", e1);
 			statuses.put("update modified podl", false);
 		} catch (Exception e1) {
 			success = false;
@@ -2607,9 +2618,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//log(0, "Done ingesting modified aspects into repo");
 			statuses.put("update modified aodl", true);
 		} catch (PDRAlliesClientException e1) {
-			updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Exception in ALLIES during ingest of modified aspects into repo: ", e1);
+			updateStatus = log(2, "Exception in ALLIES during ingest of modified aspects into repo: ", e1);
 			statuses.put("update modified aodl", false);
 		} catch (Exception e1) {
 			success = false;
@@ -2717,9 +2727,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 				updateModifiedObjects(monitor, lastUpdateLocal);
 				statuses.put("update remote object modifications", true);
 			} catch (PDRAlliesClientException e) {
-				updateStatus = Status.CANCEL_STATUS;
-				log(2, "Download of remote modified objects failed", e);
+				updateStatus = log(2, "Download of remote modified objects failed", e);
 				statuses.put("update remote object modifications", false);
+				success = false;
 			} catch (Exception e) {
 				success = false;
 				log(2, "Download of remote modified objects failed", e);
@@ -3429,6 +3439,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			repoUsers = Utilities.getObjects(PDRType.USER, _repositoryId, _projectId, 1, 9);
 		} catch (PDRAlliesClientException e2) {
 			log(2, "Download of remote repo user definitions failed,\npossibly due to failed authentication as "+Configuration.getInstance().getPDRUserID(), e2);
+			// XXX exception should be thrown
 		}
 		Collections.sort(repoUsers);
 		boolean found = false;

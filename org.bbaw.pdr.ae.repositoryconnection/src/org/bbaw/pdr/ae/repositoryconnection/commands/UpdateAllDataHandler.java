@@ -212,9 +212,13 @@ public class UpdateAllDataHandler implements IHandler
 								{
 									info = NLMessages.getString("Command_update_successful");
 								}
-								else
-								{
-									info = NLMessages.getString("Command_update_error");
+								else {
+									if (_updateStatus.equals(Status.CANCEL_STATUS)) {
+										info = NLMessages.getString("Command_update_error");
+									} else {
+										info = NLMessages.getString("Command_update_error_server");
+										info += "\n\n" + ((Status)_updateStatus).getMessage();
+									}
 								}
 								MessageDialog infoDialog = new MessageDialog(shell, info, null, info,
 										MessageDialog.INFORMATION,

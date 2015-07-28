@@ -32,7 +32,8 @@ Import-Package: org.bbaw.pdr.ae.common,
  org.bbaw.pdr.ae.view.control.filters,
  org.bbaw.pdr.ae.view.control.interfaces,
  org.bbaw.pdr.ae.view.control.provider,
- org.bbaw.pdr.ae.view.main.interfaces
+ org.bbaw.pdr.ae.view.main.interfaces,
+ org.bbaw.pdr.allies.error
 Export-Package: org.bbaw.pdr.ae.view.main.dialogs,
  org.bbaw.pdr.ae.view.main.interfaces,
  org.bbaw.pdr.ae.view.main.views

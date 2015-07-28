@@ -70,6 +70,8 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.handlers.HandlerUtil;
 
+import org.bbaw.pdr.allies.error.PDRAlliesClientException;
+
 /**
  * Class creates login dialog for entering the user name. TODO it has to be
  * adapted to dynamic data TODO vielleicht ist es besser, wenn der dialog nicht
@@ -526,6 +528,9 @@ public class LoginDialog extends TitleAreaDialog
 									log(1, "Load initial users");
 									rum.loadInitialUsers(_userID, _userPassword, null);
 									usersInitialized = true;
+								} catch (PDRAlliesClientException e) {
+									log(2, "Allies Error: "+e.getMessage(), e);
+									setErrorMessage(NLMessages.getString("LoginDialog_errorMessageNoConnection")); //$NON-NLS-1$
 								} catch (Exception e) {
 									log(2, "Error: "+e.getMessage(), e);
 									log(1, "Verify/create users in user manager.");

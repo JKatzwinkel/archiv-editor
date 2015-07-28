@@ -33,6 +33,8 @@ import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.common.CommonActivator;
 import org.bbaw.pdr.ae.common.NLMessages;
 import org.bbaw.pdr.ae.repositoryconnection.internal.Activator;
+import org.bbaw.pdr.allies.client.Configuration;
+import org.bbaw.pdr.allies.client.Repository;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
@@ -431,6 +433,19 @@ public class RepositoryLogin extends TitleAreaDialog
 			MessageDialog.openInformation(_parentShell, NLMessages.getString("View_error"), message); //$NON-NLS-1$
 			return false;
 		}
+		
+		// XXX move this to a update manager method to avoid dependency on allies
+		// check if PDR server responds at given url
+		try {
+			Configuration.getInstance().setAxis2BaseURL(_repositoryURL.getText().trim());
+			// check if remote is even a PDR server
+			Repository.getTime();
+		} catch (Exception e) {
+			String message = NLMessages.getString("Command_update_error_server");
+			MessageDialog.openInformation(_parentShell, NLMessages.getString("View_error"), message); //$NON-NLS-1$
+			return false;
+		}
+		
 		
 		IStatus sname = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Repository Connection set to: "
 				+ _repositoryURL.getText().trim() + " repoInstanceID " + _repoInstanceID + " projectID " + _projectID); //$NON-NLS-1$
