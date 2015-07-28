@@ -114,7 +114,7 @@ public class ConfigDropListner extends ViewerDropAdapter
 		{
 				if (_target.getParent().equals(data.getParent()))
 				{
-					insertElementAndCalculatePriorities(_target.getParent(), data, _target.getPriority());
+					calculatePriorities(_target.getParent(), data, _target.getPriority());
 				}
 				else
 				{
@@ -122,7 +122,7 @@ public class ConfigDropListner extends ViewerDropAdapter
 					data.setParent(_target.getParent());
 					resetItemType(data.getParent(), data);
 					data.getParent().getChildren().put(data.getValue(), data);
-					insertElementAndCalculatePriorities(_target.getParent(), data, _target.getPriority());
+					calculatePriorities(_target.getParent(), data, _target.getPriority());
 					if (data.getChildren() != null)
 					{
 						for (String key : data.getChildren().keySet())
@@ -137,7 +137,7 @@ public class ConfigDropListner extends ViewerDropAdapter
 		{
 				if (_target.getParent().equals(data.getParent()))
 				{
-					insertElementAndCalculatePriorities(_target.getParent(), data, _target.getPriority() + 1);
+					calculatePriorities(_target.getParent(), data, _target.getPriority() + 1);
 
 				}
 				else
@@ -147,7 +147,7 @@ public class ConfigDropListner extends ViewerDropAdapter
 					resetItemType(data.getParent(), data);
 					data.getParent().getChildren().put(data.getValue(), data);
 
-					insertElementAndCalculatePriorities(_target.getParent(), data, _target.getPriority() + 1);
+					calculatePriorities(_target.getParent(), data, _target.getPriority() + 1);
 
 					if (data.getChildren() != null)
 					{
@@ -177,7 +177,7 @@ public class ConfigDropListner extends ViewerDropAdapter
 						resetItemType(data, data.getChildren().get(key));
 					}
 				}
-				insertElementAndCalculatePriorities(_target, data, 0);
+				calculatePriorities(_target, data, 0);
 		}	
 			break;
 		case 4: // into _targetget
@@ -197,7 +197,7 @@ public class ConfigDropListner extends ViewerDropAdapter
 					resetItemType(data, data.getChildren().get(key));
 				}
 			}
-			insertElementAndCalculatePriorities(_target, data, 0);
+			calculatePriorities(_target, data, 0);
 
 		}	
 			break;
@@ -232,28 +232,36 @@ public class ConfigDropListner extends ViewerDropAdapter
 	 * @param data data object
 	 * @param priority new priority of data object
 	 */
-	private void insertElementAndCalculatePriorities(ConfigData parent,
+	private void calculatePriorities(ConfigData parent,
 			ConfigData data, int priority) {
 		data.setPriority(priority);
 		List<ConfigData> children = new ArrayList<ConfigData>(parent.getChildren().values());
 		Collections.sort(children);
 		int i = 0;
 		ConfigData last = null;
+		// move down siblings with same priority as dropped item
 		for (ConfigData child : children)
-		{
-			if (child.getPriority() >= priority)
-			{
-				if (!child.equals(data) && (last == null || child.getPriority() == last.getPriority()))
-				{
-					i++;
-					child.setPriority(child.getPriority() + i);
-				}
+			if (child.getPriority() >= priority) {
+				if (!child.equals(data)) 
+						if (last == null || child.getPriority() <= last.getPriority()) {
+							i++;
+							child.setPriority(child.getPriority() + i);
+						}
 				last = child;
 			}
-			
+		// make priority values unique
+		Collections.sort(children);
+		last = null;
+		for (ConfigData child : children) {
+			if (last != null)
+				if (!(child.getPriority() > last.getPriority()))
+					child.setPriority(last.getPriority() + 1);
+			last = child;
 		}
-		
+		// TODO: if the item above which the dragged item is dropped and its predecessor(s) have the same priority value,
+		// dropped item will unexpectedly move further up in list.
 	}
+
 
 	/** ajusts the type of the droped item to its new type if it has been put up to another
 	 * level in the tree.
