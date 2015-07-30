@@ -196,6 +196,7 @@ public class MarkupEditorStext implements IMarkupEditor
 		gd.verticalAlignment = SWT.FILL;
 		// gd.widthHint = 280;
 		gd.heightHint = 50;
+		gd.minimumHeight = 40;
 
 		_stext.setLayoutData(gd);
 		_stext.setFont(_resources.createFont(_fontDescriptor)); //$NON-NLS-1$
