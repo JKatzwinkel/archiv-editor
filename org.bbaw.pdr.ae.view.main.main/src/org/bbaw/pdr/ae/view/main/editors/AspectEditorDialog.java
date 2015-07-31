@@ -6982,6 +6982,9 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 							if (ref != null)
 							{
 								_facade.setCurrentReference(ref);
+								System.out.println("current reference revisions: "+ref.getRecord().getRevisions().size());
+								for (Revision r : ref.getRecord().getRevisions())
+									System.out.println(" "+r.getRef()+" "+r.getTimeStamp());
 
 								IHandlerService handlerService = (IHandlerService) PlatformUI.getWorkbench()
 										.getService(IHandlerService.class);
@@ -7006,6 +7009,9 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 								{
 									e.printStackTrace();
 								}
+								System.out.println("After editing:");
+								System.out.println("current reference revisions: "+ref.getRecord().getRevisions().size());
+								
 							}
 						}
 

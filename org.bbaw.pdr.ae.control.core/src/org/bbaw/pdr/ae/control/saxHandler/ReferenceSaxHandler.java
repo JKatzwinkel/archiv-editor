@@ -819,6 +819,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 		else if (localName.equals("recordInfo") || qName.equals("recordInfo") || localName.equals("mods:recordInfo")
 				|| qName.equals("mods:recordInfo"))
 		{
+			_revision.setRef(_record.getRevisions().size());
 			_record.getRevisions().add(_revision);
 		}
 		else if (localName.equals("r"))
@@ -1023,6 +1024,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 				}
 			}
 			_relatedItems = new Vector<RelatedItem>(1);
+			_record = new Record();
 		}
 		else if (localName.equals("mods") && _template) // XXX hier auch? mods ist unterelement von refTemplate, also bestimmt ja
 		{
@@ -1037,6 +1039,7 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 			// e.printStackTrace();
 			// }
 			_ref = new ReferenceMods(new Genre());
+			_record = new Record();
 		}
 		else if ((localName.equals("mods") || qName.equals("mods") || localName.equals("mods:mods") || qName
 				.equals("mods:mods")) && (_template || _ref == null))
@@ -1484,8 +1487,6 @@ public class ReferenceSaxHandler extends DefaultHandler // implements
 		else if (localName.equals("recordInfo") || qName.equals("recordInfo") || localName.equals("mods:recordInfo")
 				|| qName.equals("mods:recordInfo"))
 		{
-			if (_record == null) 
-				_record = new Record();
 			_revision = new Revision(); 
 			_acc = false;
 		}

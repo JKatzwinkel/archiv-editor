@@ -2782,6 +2782,7 @@ public class SourceEditorDialog extends TitleAreaDialog implements Observer
 		revision.setRevisor(new String(_facade.getCurrentUser().getDisplayName()));
 		revision.setTimeStamp(_facade.getCurrentDate());
 		revision.setAuthority(_facade.getCurrentUser().getPdrId().clone());
+		// XXX why create revision before reference is even loaded?
 		if (_currentReference.isNew())
 		{
 			revision.setRef(0);
