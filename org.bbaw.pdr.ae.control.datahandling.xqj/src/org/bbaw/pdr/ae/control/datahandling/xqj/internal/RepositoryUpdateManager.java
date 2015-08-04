@@ -692,11 +692,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 						PDRObjectDisplayNameProcessor dnp = new PDRObjectDisplayNameProcessor();
 						log(1, "Number of reference object conflicts: "+_conflictingRepReferences.size());
 						conReferences = new Vector<PDRObjectsConflict>(_conflictingRepReferences.size());
-						ReferenceSaxHandler handler = new ReferenceSaxHandler();
 						for (String s : _conflictingRepReferences) {
 							id = extractPdrId(s);
 							if (saxParser != null) {
 								try	{
+									ReferenceSaxHandler handler = new ReferenceSaxHandler();
 									is = new ByteArrayInputStream(s.getBytes("UTF-8"));
 									saxParser.parse(is, handler);
 									oConflict = new PDRObjectsConflict();
