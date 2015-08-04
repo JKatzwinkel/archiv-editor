@@ -324,8 +324,8 @@ public class MainSearcher extends AMainSearcher
 			query += "\nreturn <facet>{string($v//@internal)}</facet> } </a> \n" + "}</result>";
 		}
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getComplexFacets query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getComplexFacets query: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -579,8 +579,8 @@ public class MainSearcher extends AMainSearcher
 				query += "\nreturn <facet>{$n/text()}</facet>" + "}</result>";
 			}
 		}
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getFacets query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getFacets query: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -625,8 +625,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $x in collection(\"aspect\")//aodl:aspect\n"
 				+ "where (number(substring($x/@id, 15)) >= 100000000)\n" + "order by $x/@id\n" + "\nreturn $x";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspect query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspect query: " + query);
+		//iLogger.log(_log);
 		Vector<String> aspects = new Vector<String>();
 
 		synchronized (_dbCon)
@@ -656,8 +656,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $x in collection(\"person\")//podl:person\n"
 				+ "where (number(substring($x/@id, 15)) >= 100000000)\n" + "order by $x/@id\n" + "\nreturn $x";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher persons query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher persons query: " + query);
+		//iLogger.log(_log);
 		Vector<String> persons = new Vector<String>();
 
 		synchronized (_dbCon)
@@ -720,8 +720,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $x in collection(\"reference\")//mods:mods\n"
 				+ "where (number(substring($x/@ID, 15)) >= 100000000)\n" + "order by $x/@ID\n" + "\nreturn $x";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher references query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher references query: " + query);
+		//iLogger.log(_log);
 		Vector<String> references = new Vector<String>();
 
 		synchronized (_dbCon)
@@ -825,7 +825,7 @@ public class MainSearcher extends AMainSearcher
 					+ "for $x in collection(\"users\")//user[./@id='" + idString + "']\n" + "return $x";
 		}
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getObjectXML " + query);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getObjectXML " + query);
 		//iLogger.log(_log);
 
 		// // execute the XQuery Expression
@@ -875,8 +875,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $p in collection(\"person\")//podl:person[./@id='" + id.toString() + "']\n"
 				+ "return <p>{$p}</p>\n" + "}</result>\n";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getPersonById: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getPersonById: " + query);
+		//iLogger.log(_log);
 		XQConnection con;
 		XQPreparedExpression xqp;
 		XQResultSequence xqs;
@@ -997,8 +997,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $x in collection(\"refTemplate\")//mods[.//genre='" + genre + "']\n" + "return <r>{$x}</r>"
 				+ "}</template>";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getReferenceFormate query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getReferenceFormate query: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -1100,8 +1100,8 @@ public class MainSearcher extends AMainSearcher
 			query += "\nreturn <v>{string($v//@" + searchedValue + ")}</v> } </a> \n" + "}</result>";
 		}
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getValues query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher getValues query: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -1151,8 +1151,8 @@ public class MainSearcher extends AMainSearcher
 
 		String query = "declare namespace podl=\"http://pdr.bbaw.de/namespaces/podl/\";\n"
 				+ "for $x in collection(\"person\")//podl:person\n" + "return $x";
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllPersons: ");// + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllPersons: ");// + query);
+		//iLogger.log(_log);
 		XQResultSequence xqs;
 		synchronized (_dbCon)
 		{
@@ -1219,9 +1219,9 @@ public class MainSearcher extends AMainSearcher
 			query += "return  <person id='{$x//aodl:relation/@object}'>"
 					+ "{$x//aodl:notification}{$x//aodl:semanticStm}</person>\n" + "}</result>";
 
-			_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID,
-					"MainSearcher searchAllPersons query for person names: " + query);
-			iLogger.log(_log);
+			//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID,
+			//		"MainSearcher searchAllPersons query for person names: " + query);
+			//iLogger.log(_log);
 
 			// synchronized (dbCon)
 			// {
@@ -1291,8 +1291,8 @@ public class MainSearcher extends AMainSearcher
 
 			XQPreparedExpression xqp;
 
-			_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllReferences: ");// + query);
-			iLogger.log(_log);
+			//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllReferences: ");// + query);
+			//iLogger.log(_log);
 
 			xqp = con.prepareExpression(query);
 
@@ -1322,8 +1322,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $x in collection(\"refTemplate\")//refTemplate\n" + "order by $x//@genre\n"
 				+ "return <template>{$x}</template>" + "}</resultTemplates>";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllReferenceTemplates: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAllReferenceTemplates: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -1367,8 +1367,8 @@ public class MainSearcher extends AMainSearcher
 
 		query += "\nreturn <a>{$x}</a>\n" + "}</qAspect>";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspect query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspect query: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -1419,8 +1419,8 @@ public class MainSearcher extends AMainSearcher
 
 		query += "\nreturn <a>{$x}</a>\n" + "}</qAspect>";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspect query: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspect query: " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -1826,8 +1826,8 @@ public class MainSearcher extends AMainSearcher
 			query += "\nreturn <a>{$x}</a>\n" + "}</qAspect>";
 		}
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher aspect query " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher aspect query " + query);
+		//iLogger.log(_log);
 
 		synchronized (_dbCon)
 		{
@@ -1887,9 +1887,9 @@ public class MainSearcher extends AMainSearcher
 				+ "for $a in collection(\"aspect\")//aodl:aspect[.//aodl:reference/text()='"
 				+ pdrObject.getPdrId().toString() + "']\n" + "return <a>{$a}</a>\n" + "}</result>\n";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspectsByReference query: "
-				+ query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspectsByReference query: "
+		//		+ query);
+		//iLogger.log(_log);
 		synchronized (_dbCon)
 		{
 			XQConnection con = _dbCon.getConnection();
@@ -3220,8 +3220,8 @@ public class MainSearcher extends AMainSearcher
 				+ "for $a in collection(\"aspect\")//aodl:aspect" + rel + "\n" + "return <a>{$a}</a>\n"
 				+ "}</result>\n";
 
-		_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspectsByReferences: " + query);
-		iLogger.log(_log);
+		//_log = new Status(IStatus.INFO, CommonActivator.PLUGIN_ID, "MainSearcher searchAspectsByReferences: " + query);
+		//iLogger.log(_log);
 		synchronized (_dbCon)
 		{
 			XQConnection con = _dbCon.getConnection();
