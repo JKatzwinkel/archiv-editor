@@ -163,10 +163,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 	/** The conflicting rep references. */
 	private Vector<String> _conflictingRepReferences = null;
 
-	/** The revision pattern. */
-	private Pattern _revisionPattern = Pattern
-			.compile("ref=\"\\d\\\" timestamp=\"\\d{4}\\-\\d{2}\\-\\d{2}T\\d{2}\\:\\d{2}\\:\\d{2}");
-
 	/** The NEWOBJECT s_ packag e_ size. */
 	private static final int NEWOBJECTS_PACKAGE_SIZE = 50;
 
@@ -227,72 +223,84 @@ public class RepositoryUpdateManager implements IUpdateManager
 		return modifiedIds;
 	}
 
+	private static Pattern objectRevisionPattern = Pattern.compile(
+			"(revision) [^>]*timestamp=\"([^\"]++)\"");
+	private static Pattern modsRevisionPattern = Pattern.compile(
+			"record(Creation|Change)Date[^>]*>([^<]++)<");
+	
+	private static Vector<Date> extractRevs(String xml, String col) {
+		Vector<Date> res = new Vector<Date>();
+		Matcher m = col.equals("reference") 
+				? modsRevisionPattern.matcher(xml)
+				: objectRevisionPattern.matcher(xml);
+		while (m.find())
+			try {
+				Date d = AEConstants.ADMINDATE_FORMAT.parse(m.group(2));
+				res.add(d);
+			} catch (Exception e) {
+				log(2, "Could not parse revision timestamp!", e);
+			}
+		return res;
+	}
+
 	/**
-	 * checks if updated version from repository is really younger than the
-	 * local one.
-	 * @param repo version from repository
-	 * @param col collection
-	 * @param name id.
-	 * @return true if repository version not older than local one
+	 * Compares two versions of a given object and determines whether to keep the one passed as <code>remote</code>
+	 * parameter.
+	 * <p>I.e. if remote object has a newer revision than the local object, or if local object cannot be retrieved,
+	 * this method returns true</p>
+	 * @param remote remote object as XML
+	 * @param col collection name of compared objects, i.e. one of <code>aspect, person, reference, users</code>.
+	 * @param name file name of local objects, i.e. its {@link PdrId}+<code>".xml"</code>
+	 * @return true if remote object is newer, or should replace local object for some other reason
 	 * @throws Exception
 	 */
-	private boolean checkVersions(final String repo, final String col, final String name) throws Exception {
-		// System.out.println("checking version repo " + repo);
-		String local = null;
-		String logmsg; 
-		try	{
-			//System.out.println("checking version col " + col + " name " + name);
-			// XXX klappt natuerlich nicht bei mods objekten, bei denen die revision im recordInfo? stehen soll
-			local = _mainSearcher.searchObjectString(col, name);
-			logmsg = "Compare object versions:\nlocal:  " + local+"\nremote: "+repo;
-		} catch (XQException e)	{
-			log(2, "local Object retrieval failed for "+name+" ("+col+")", e);
-			return true;
-		}
+	private boolean compareVersions(final String remote, final String col, final String name) throws Exception {
+		String logmsg = "";
+		// assume remote version if newer until proven otherwise
 		boolean repoNewer = true;
-		Date localLastDate = null;
-		Date repoLastDate = null;
+		String local = null;
+		Date latestRevLocal = null;
+		Date latestRevRemote = null;
+		// get local object
+		try {
+			local = _mainSearcher.searchObjectString(col, name);
+		} catch (XQException e) {
+			log(2, "local object retrieval failed for "+name+" ("+col+")", e);
+			repoNewer = true;
+		}
 		if (local != null) {
-			Matcher m = _revisionPattern.matcher(local);
-			Vector<Date> revDates = new Vector<Date>();
-			while (m.find()) 
-				try {
-					revDates.add(AEConstants.ADMINDATE_FORMAT.parse(m.group().split("timestamp=\"")[1]));
-				} catch (Exception e) {
-					// failed to parse revision timestamp
-					// TODO: throw exception?
-				}
-			if (!revDates.isEmpty())
-				localLastDate = Collections.max(revDates);
-			if (repo != null) {
-				revDates.clear();
-				m = _revisionPattern.matcher(repo);
-				while (m.find())
-					try {
-						revDates.add(AEConstants.ADMINDATE_FORMAT.parse(m.group().split("timestamp=\"")[1]));
-					} catch  (Exception e) {
-						// failed to parse revision timestamp
-					}
-				if (!revDates.isEmpty())
-					repoLastDate = Collections.max(revDates);
-			} else {// return false if repo object is null
-				log(2, logmsg+"\nRemote object is null, hence not newer");
+			logmsg = "Compare object versions:\nlocal:  " + local+"\nremote: "+remote;
+			// extract revision timestamps from local object
+			try {
+				latestRevLocal = Collections.max(extractRevs(local, col));
+			} catch (Exception e) {
+				logmsg += "\nCould not determine latest revision timestamp for local object";
+				repoNewer = true;
+			}
+			// extract revision timestamps from remote object
+			try {
+				latestRevRemote = Collections.max(extractRevs(remote, col));
+			} catch (Exception e) {
+				logmsg += "\nCould not determine latest revision timestamp for remote object";
 				repoNewer = false;
 			}
-			// return false if most recent repo object revision is not more recent than local object's
-			// or if remote object revision could not be retrieved
-			if (repoLastDate != null) {
-				if (localLastDate != null && !repoLastDate.after(localLastDate))
+			// if remote object exists and has newer revision than local, do nothing, otherwise return value is false
+			if (latestRevRemote != null) {
+				if (latestRevLocal != null && !latestRevRemote.after(latestRevLocal))
 					repoNewer = false;
 			} else 
 				repoNewer = false;
-		} else // return true if local version is null, as we want to download remote version then
+		} else {
+			// if local object is not present, remote object is automatically preferred
+			logmsg += "\nlocal object is null.";
 			repoNewer = true;
-		log(1, logmsg+"\nTimestamps of latest revisions: local: "+localLastDate+", remote: "+repoLastDate+"\nRemote version newer: "+repoNewer);
+		}
+		log(1, logmsg+"\nTimestamps of latest revisions: local: "+latestRevLocal+", remote: "+latestRevRemote+"\nRemote version newer: "+repoNewer);
 		// return true if local object could not be retrieved or remote object is newer
 		return repoNewer;
 	}
-
+	
+	
 	/**
 	 * extracts pdrid from object xml string.
 	 * @param objectString object xml as string
@@ -3130,10 +3138,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				// XXX hier wird der fall nicht abgedeckt, in dem zwar die lokale version neuer ist als die auf remote,
 				// die remote version jedoch ebenfalls neuer ist als das letzte lokale update. Ist das schlimm oder
 				// wird das nachher beim conflict handling bemerkt?
-				// XXX in mods gibt es doch ueberhaupt keine revision, wie soll man denn da feststellen welcehs objekt
-				// neuer ist??? antwort: es wird stattdessen wohl recordInfo verwendet. Davon musz modl mindestens eines haben
-				// allerdings wird das im SAXHandler nicht wirklich eingelesen
-				if (!s.startsWith("no path in db registry") && checkVersions(s, col, name))
+				if (!s.startsWith("no path in db registry") && compareVersions(s, col, name))
 					synchronized (_dbCon) { 
 						System.out.println("Save object modified on server to local DB: "+col+" "+name+" "+s);
 						_dbCon.store2DB(s, col, name, false);
