@@ -2363,13 +2363,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 
 	
-	private Status log(int level, String msg) {
+	private static Status log(int level, String msg) {
 		Status status = new Status(level, Activator.PLUGIN_ID, msg);
 		iLogger.log(status);
 		return status;
 	}
 	
-	private Status log(int level, String msg, Throwable e) {
+	private static Status log(int level, String msg, Throwable e) {
 		if (e != null) {
 			Status status = new Status(level, Activator.PLUGIN_ID, msg+"\n"+e.getMessage(), e);
 			iLogger.log(status);
