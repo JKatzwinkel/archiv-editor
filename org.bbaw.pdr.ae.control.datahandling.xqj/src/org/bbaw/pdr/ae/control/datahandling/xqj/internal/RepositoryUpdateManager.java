@@ -92,6 +92,7 @@ import org.bbaw.pdr.ae.model.ReferenceMods;
 import org.bbaw.pdr.ae.model.User;
 import org.bbaw.pdr.ae.model.view.PDRObjectsConflict;
 import org.bbaw.pdr.ae.repositoryconnection.view.UpdateConflictDialog;
+import org.bbaw.pdr.ae.repositoryconnection.view.RepoUpdateStatusDialog;
 import org.bbaw.pdr.allies.client.Configuration;
 import org.bbaw.pdr.allies.client.IDRange;
 import org.bbaw.pdr.allies.client.Identifier;
@@ -103,6 +104,7 @@ import org.bbaw.pdr.allies.error.PDRAlliesClientException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.widgets.Display;
@@ -116,6 +118,7 @@ import org.xml.sax.SAXException;
 import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.XMLFilterImpl;
 import org.xml.sax.helpers.XMLReaderFactory;
+
 
 /**
  * The Class RepositoryUpdateManager.
@@ -295,7 +298,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			logmsg += "\nlocal object is null.";
 			repoNewer = true;
 		}
-		log(1, logmsg+"\nTimestamps of latest revisions: local: "+latestRevLocal+", remote: "+latestRevRemote+"\nRemote version newer: "+repoNewer);
+		statusReportAttach(log(1, logmsg+"\nTimestamps of latest revisions: local: "+latestRevLocal+", remote: "+latestRevRemote+"\nRemote version newer: "+repoNewer));
 		// return true if local object could not be retrieved or remote object is newer
 		return repoNewer;
 	}
@@ -911,7 +914,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			List<String> persons = getModifiedPersons();
 			if (persons.size() == 0)
 				return;
-			log(1, "Begin to ingest "+persons.size()+" modified person objects from local DB");
+			statusReportBuf(log(1, ""+persons.size()+" modified person objects in local DB."));
 			monitor.beginTask("Ingesting Modified Persons into Repository. Number of Objects: " + persons.size(),
 					persons.size());
 
@@ -928,7 +931,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					if (xml2 != null) {
 						subPersons.add(xml2);
 					} else
-						log(2, "Invalid person object: "+xml);
+						statusReportAttach(log(2, "Invalid person object: "+xml));
 				} else
 					subPersons.add(xml);
 			}
@@ -936,11 +939,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// keep pushing and chunking until no modified person remains
 			while (subPersons != null && !subPersons.isEmpty())	{
 				log(1, "Push "+subPersons.size()+" person objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-				for (String xml : subPersons)
-					System.out.println(xml);
 				subConflictingPersons = Repository.modifyObjects(_repositoryId, _projectId, subPersons, false);
+				statusReportAttach(log(1, "Pushed "+subPersons.size()+" person objects to remote."));
 				if (subConflictingPersons != null && !subConflictingPersons.isEmpty()) {
-					log(1, ""+subConflictingPersons.size()+" new conflicts");
+					statusReportAttach(log(1, ""+subConflictingPersons.size()+" new conflicts"));
 					_conflictingRepPersons.addAll(subConflictingPersons);
 				}
 				monitor.worked(subPersons.size());
@@ -957,12 +959,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 						if (xml2 != null) {
 							subPersons.add(xml2);
 						} else
-							log(2, "Invalid person object: "+xml);
+							statusReportAttach(log(2, "Invalid person object: "+xml));
 					} else
 						subPersons.add(xml);
 				}
 			}
-			log(0, "Done pushing modified person objects. Total number of pushed persons: "+counter+" (modified persons: "+persons.size()+")");
+			statusReportBuf(log(0, "Pushed "+counter+" of "+persons.size()+" modified persons to remote."));
 		}
 	}
 
@@ -988,7 +990,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			List<String> references = getModifiedReferences();
 			if (references.size() == 0)
 				return;
-			log(1, "Loaded "+references.size()+" modified reference objects from local DB");
+			statusReportBuf(log(1, "Loaded "+references.size()+" modified reference objects from local DB"));
 			monitor.beginTask("Ingesting Modified References into Repository. Number of Objects: " + references.size(),
 					references.size());
 
@@ -1006,7 +1008,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					if (xml2 != null) {
 						subReferences.add(xml2);
 					} else
-						log(2, "Invalid reference object: "+ref);
+						statusReportAttach(log(2, "Invalid reference object: "+ref));
 				} else
 					subReferences.add(ref);
 			}
@@ -1015,15 +1017,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 			while (subReferences != null && !subReferences.isEmpty()) {
 				// FIXME: SOAP fault
 				log(1, "Push "+subReferences.size()+" reference objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-				for (String r : subReferences) {
-					System.out.println(r);
-					Matcher m = this.pdrModsLinkPattern.matcher(r);
-					while (m.find())
-						System.out.println("RelatedItem: "+m.group(1));
-				}
 				subConflictingRefs = Repository.modifyObjects(_repositoryId, _projectId, subReferences, false);
+				String msg = "Push "+subReferences.size()+" reference objects to remote:";
+				for (String r : subReferences)
+					msg += "\n "+r;
+				statusReportAttach(log(1, msg));
 				if (subConflictingRefs != null && !subConflictingRefs.isEmpty()) {
-					log(1, ""+subConflictingRefs.size()+" new conflicts");
+					statusReportAttach(log(1, ""+subConflictingRefs.size()+" new conflicts"));
 					_conflictingRepReferences.addAll(subConflictingRefs);
 				}
 				monitor.worked(subReferences.size());
@@ -1041,12 +1041,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 						if (xml2 != null) {
 							subReferences.add(xml2);
 						} else
-							log(2, "Invalid reference object: "+ref);
+							statusReportAttach(log(2, "Invalid reference object: "+ref));
 					} else
 						subReferences.add(ref);
 				}
 			}
-			log(0, "Done pushing modified reference objects. Total number of pushed references: "+counter);
+			statusReportBuf(log(0, "Pushed "+counter+" modified reference objects."));
+			
 		}
 	}
 
@@ -1526,6 +1527,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				for (String s : subUsers)
 					logmsg += "\n " + extractPdrId(s);
 				log(1, logmsg);
+				statusReportBuf(log(1, "Ingest "+subUsers.size()+" new local user objects."));
 				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subUsers);
 				if (!idMap.isEmpty()) {
 					// System.out.println("size of map " + idMap.size());
@@ -1559,6 +1561,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			}
 			if (modifiedUserIds != null && !modifiedUserIds.isEmpty()) 
 				_idService.insertIdModifiedObject(modifiedUserIds, "pdrUo");
+			statusReportFlush(log(0, "Ingested "+modifiedUserIds.size()+" new local user objects."));
 			//if (!standardUsers.isEmpty()) 
 				//checkAndInjestStandardUsers(standardUsers, userId, password);
 		}
@@ -1658,7 +1661,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					try {
 						dependingOn.get(d).add(i);
 					} catch (NullPointerException e) {
-						log(2, "Object "+i+" references unknown object "+d);
+						statusReportAttach(log(2, "Object "+i+" references unknown object "+d));
 					}
 						
 			// sequence of new objs Ids put in dependency-sensitive order
@@ -1676,7 +1679,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 				// check for loops
 				if (dependents.contains(i)) {
-					log(2, "Detected object dependency loop at object "+i);
+					statusReportBuf(log(2, "Detected object dependency loop at object "+i));
 					// return all new local objects, all these objects failed to be ingested
 					return newObjsIds;
 				}
@@ -1727,6 +1730,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						if (pdrType.equals(i.substring(0, 5)))
 							packet.add(_mainSearcher.getObjectXML(i));
 				if (!packet.isEmpty()) {
+					monitor.subTask("Ingesting "+packet.size()+" "+pdrType+" objects.");
 					log(1, "Push "+packet.size()+" NEW "+pdrType+" objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");				
 					// list of persistent (global) IDs returned by server on ingest on local objects 
 					Vector<String> persistentIds = new Vector<String>();
@@ -1735,6 +1739,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					//////////////////
 					try {
 						Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, packet);
+						statusReportBuf(log(1, "Ingest "+packet.size()+" new local "+pdrType+" objects to remote."));
 						// update local DB using the persistent ID the server returned
 						for (Entry<Identifier, Identifier> idMapping : idMap.entrySet()) {
 							persistentIds.add(idMapping.getValue().toString());
@@ -1751,11 +1756,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 						// (IDService.insertIdModifiedObject)
 						if (!persistentIds.isEmpty()) 
 							_idService.insertIdModifiedObject(persistentIds, pdrType); // XXX stay alert: objects might still pop up as 'modified' later
-						log(0, "server returned "+persistentIds.size()+" global IDs)");
+						statusReportAttach(log(1, "server returned "+persistentIds.size()+" global IDs)"));
 					} catch (Exception e) {
 						// if ingest fails regardless of thoughtful precautions, terminate ingest, return all queued objects
 						// as failure list
 						log(2, "Could not ingest/update new local objects (login as "+Configuration.getInstance().getPDRUserID()+" @ "+Configuration.getInstance().getAxis2BaseURL()+")", e);
+						statusReportAttach(log(2, "New local objects could not be ingested."));
 						
 						failures.addAll(packet);
 						return new Vector<String>( failures );
@@ -1763,7 +1769,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 					monitor.worked(packet.size());
 				}
 			}
-			
 			
 			log(0, "Done pushing NEW local objects. Total number of ingested objects: "+counter+"\n(out of "+newObjsXml.size()+" new objects");
 			return new Vector<String>(failures);
@@ -2386,19 +2391,105 @@ public class RepositoryUpdateManager implements IUpdateManager
 			return log(level, msg);
 	}
 	
+	private Vector<IStatus> statusReport = new Vector<IStatus>();
+	private Vector<IStatus> statusReportBuffer = new Vector<IStatus>();
+	
+	/**
+	 * Adds a status to the status buffer.
+	 * @param s
+	 * @return
+	 */
+	private IStatus statusReportBuf(IStatus s) {
+		statusReportBuffer.add(s);
+		return s;
+	}
+	
+	/**
+	 * Attaches a status to the last buffered Status as its child.
+	 * @param s
+	 * @return
+	 */
+	private IStatus statusReportAttach(IStatus s) {
+		if (!(statusReportBuffer.lastElement() instanceof MultiStatus)) {
+			IStatus last = statusReportBuffer.lastElement();
+			statusReportBuffer.remove(last); 
+			statusReportBuffer.add(new MultiStatus(
+					last.getPlugin(), 
+					last.getCode(), 
+					last.getMessage(), 
+					last.getException()));
+		}
+		((MultiStatus)statusReportBuffer.lastElement()).add(s);
+		return s;
+	}
 
+	/**
+	 * Creates a new {@link MultiStatus} object, attaches all previously buffered statuses as its children
+	 * and adds it to the final status list, after which status buffer is cleared. 
+	 * @param s
+	 * @return
+	 */
+	private Vector<IStatus> statusReportFlush(IStatus s) {
+		if (statusReportBuffer.size() > 0) {
+			if (!(s instanceof MultiStatus)) {
+				statusReport.add(new MultiStatus(
+						s.getPlugin(), 
+						s.getCode(), 
+						s.getMessage(), 
+						s.getException()));
+			}
+			for (IStatus bufs : statusReportBuffer)
+				((MultiStatus)statusReport.lastElement()).add(bufs);
+		} else 
+			statusReport.add(s);
+		statusReportBuffer.clear();
+		return statusReport;
+	}
+	
+	/**
+	 * Moves all previously buffered statuses to the final status list and clears buffer.
+	 * @return
+	 */
+	private Vector<IStatus> statusReportFlush() {
+		for (IStatus bufs : statusReportBuffer)
+			statusReport.add(bufs);
+		statusReportBuffer.clear();
+		return statusReport;
+	}
+	
+	/**
+	 * Returns a {@link MultiStatus} object with all the previously reported statuses as its children.
+	 * Also clears entire status list!
+	 * @return
+	 */
+	private IStatus statusReport() {
+		IStatus root = log(IStatus.OK, "Update encountered no problems.");
+		for (IStatus s : statusReportFlush())
+			if (s.getSeverity() > 1)
+				if (s.getSeverity() < 4) {
+					root = log(IStatus.WARNING, "Update encountered warnings.");
+				} else
+					root = log(IStatus.ERROR, "Errors during update!");
+		MultiStatus status = new MultiStatus(
+				root.getPlugin(), root.getCode(), root.getMessage(), root.getException());
+		for (IStatus s : statusReport)
+			status.add(s);
+		statusReport.clear();
+		return status;
+	}
+	
 	@Override
 	public final IStatus updateAllData(final String userID, final String password, final IProgressMonitor monitor)
 			throws Exception {
-		IStatus updateStatus = Status.OK_STATUS;
+		MultiStatus updateStatus = new MultiStatus(org.bbaw.pdr.allies.Activator.PLUGIN_ID, 0, "", null);
 		Date currentUpdate;
+		
 		
 		// TODO am besten komplette synchro nochmal von scratch neu schreiben
 		
 		// TODO wir muessen uns was ueberlegen falls keine user credentials zu haben sind. 
 		// manchmal geht user wechseln ja schief und dann muessen wir nochmal login dialog oeffnen oder so 
 		
-		// TODO bei modified objects sicherstellen dasz zwei revisions drinstehen, die letzte mit aktuellem zeitstempel
 		
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
@@ -2410,16 +2501,17 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 		// check if remote is even a PDR server
 		try {
-			Repository.getTime();
+			statusReportBuf(log(0, "Time retrieved from server: "+Repository.getTime()));
 		} catch (Exception e) {
-			log(2, "Error: "+e.getMessage(), e);
-			return new Status(IStatus.ERROR, Activator.PLUGIN_ID, e.getMessage());
+			return log(4, "Error while fetching time from server: "+e.getMessage(), e);
 		}
 		
 		Configuration.getInstance().setPDRUser(userID, password);
 		log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "url " + url.toString() + " userID " + userID + " p "
 				+ "***");
 		iLogger.log(log);
+		statusReportBuf(log);
+		statusReportFlush();
 		boolean success = true;
 		HashMap<String, Boolean> statuses = new HashMap<String, Boolean>(); 
 		
@@ -2444,16 +2536,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			injestNewUsers(userID, password);
 			//log(IStatus.OK, "New Users successfully ingested", null);
 			statuses.put("ingest new users", true);
+			updateStatus.add(log(0, "Ingested new local users"));
 		} catch (PDRAlliesClientException e) {
-			updateStatus = Status.CANCEL_STATUS;
+			updateStatus.add(log(IStatus.WARNING, "Exception at ALLIES library while ingesting new users: ", e));
 			success = false;
-			iLogger.log(new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception at ALLIES library while ingesting new users: ", e));
 			e.printStackTrace();
 			statuses.put("ingest new users", false);
 		} catch (Exception e) {
 			success = false;
-			log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Exception while ingesting new users: ", e);
-			iLogger.log(log);
+			updateStatus.add(log(IStatus.WARNING, "Exception while ingesting new users: ", e));
 			e.printStackTrace();
 			statuses.put("ingest new users", false);
 		}
@@ -2496,21 +2587,20 @@ public class RepositoryUpdateManager implements IUpdateManager
 				String logmsg = "At least "+fails.size()+" new local objects could not be ingested into remote:";
 				for (String i : fails)
 					logmsg+="\n"+i;
-				log(2, logmsg);
+				statusReportFlush(log(2, logmsg));
 				//..
-				success = false;
+				//success = false;
 			} else
-				log(1, "Ingested new local objects without failures");
+				statusReportFlush(log(0, "Ingested new local objects without failures"));
 		} catch (PDRAlliesClientException e) {
-			updateStatus = Status.CANCEL_STATUS;
+			statusReportFlush(log(4, "Exception in ALLIES while ingesting new local objects", e));
 			success = false;
 			statuses.put("ingest new local objects", false);
-			return log(2, "Exception in ALLIES while ingesting new local objects", e);
+			//return updateStatus; // TODO really return here?
 		} catch (Exception e) {
 			success = false;
-			log(IStatus.WARNING, "Exception while ingesting new local objects: ", e);
+			statusReportFlush(log(IStatus.ERROR, "Exception while ingesting new local objects: ", e));
 			statuses.put("ingest new local objects", false);
-			return updateStatus;
 		} 
 		
 		
@@ -2531,15 +2621,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// they are uploaded to server with Utilities.setCategories method 
 			log(1, "Begin to ingest modified configurations into repo");
 			injestModifiedConfig(monitor);
-			log(0, "Done ingesting modified configurations");
+			statusReportFlush(log(0, "Uploaded modified configurations"));
 			statuses.put("update modified configs", true);
 		} catch (PDRAlliesClientException e1) {
 			success = false;
-			updateStatus = log(2, "Exception during modified configurations ingest into repo: ", e1);
+			statusReportFlush(log(2, "Exception during modified configurations ingest into repo: ", e1));
 			statuses.put("update modified configs", false);
 		} catch (Exception e1) {
 			success = false;
-			log(IStatus.WARNING, "Exception during ingest of modified configurations into repo: ", e1);
+			statusReportFlush(log(IStatus.WARNING, "Exception during ingest of modified configurations into repo: ", e1));
 			statuses.put("update modified configs", false);
 		}
 
@@ -2560,11 +2650,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 			statuses.put("update modified users", true);
 		} catch (PDRAlliesClientException e1) {
 			success = false;
-			updateStatus = log(2, "Exception during ingest of modified users", e1);
+			updateStatus.add(log(2, "Exception during ingest of modified users", e1));
 			statuses.put("update modified users", false);
 		} catch (Exception e1) {
 			success = false;
-			log(2, "Exception during ingest of modified users", e1);
+			updateStatus.add(log(2, "Exception during ingest of modified users", e1));
 			statuses.put("update modified users", false);
 		}
 
@@ -2578,15 +2668,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			//////////////////////
 			//log(1, "Begin to ingest modified reference objects into repo");
 			injestModifiedReferences(monitor);
-			//log(0, "Done ingesting modified references");
+			statusReportFlush(log(0, "Uploaded modified references"));
 			statuses.put("update modified mods", true);
 		} catch (PDRAlliesClientException e1) {
 			success = false;
-			updateStatus = log(2, "Exception in ALLIES during ingest of modified references into repo: ", e1);
+			statusReportFlush(log(4, "Exception in ALLIES during ingest of modified references into repo: ", e1));
 			statuses.put("update modified mods", false);
 		} catch (Exception e1) {
 			success = false;
-			log(2, "Exception during ingest of modified references into repo: ", e1);
+			statusReportFlush(log(4, "Exception during ingest of modified references into repo: ", e1));
 			statuses.put("update modified mods", false);
 		}
 		
@@ -2601,15 +2691,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			///////////////////
 			//log(1, "Begin to ingest modified person objects into repo");
 			injestModifiedPersons(monitor);
-			//log(0, "Done ingesting modified person objects");
+			statusReportFlush(log(0, "Uploaded modified person objects"));
 			statuses.put("update modified podl", true);
 		} catch (PDRAlliesClientException e1) {
 			success = false;
-			updateStatus = log(2, "Exception in ALLIES during ingest of modified persons into repo: ", e1);
+			statusReportFlush(log(4, "Exception in ALLIES during ingest of modified persons into repo: ", e1));
 			statuses.put("update modified podl", false);
 		} catch (Exception e1) {
 			success = false;
-			log(2, "Exception during ingest of modified persons into repo: ", e1);
+			statusReportFlush(log(4, "Exception during ingest of modified persons into repo: ", e1));
 			statuses.put("update modified podl", false);
 		}
 
@@ -2623,15 +2713,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			///////////////////
 			//log(1, "Begin to ingest modified aspects into repo");
 			injestModifiedAspects(monitor);
-			//log(0, "Done ingesting modified aspects into repo");
+			statusReportFlush(log(0, "Uploaded modified aspects into repo"));
 			statuses.put("update modified aodl", true);
 		} catch (PDRAlliesClientException e1) {
 			success = false;
-			updateStatus = log(2, "Exception in ALLIES during ingest of modified aspects into repo: ", e1);
+			statusReportFlush(log(4, "Exception in ALLIES during ingest of modified aspects into repo: ", e1));
 			statuses.put("update modified aodl", false);
 		} catch (Exception e1) {
 			success = false;
-			log(2, "Exception during ingest of modified aspects into repo: ", e1);
+			statusReportFlush(log(4, "Exception during ingest of modified aspects into repo: ", e1));
 			statuses.put("update modified aodl", false);
 		}
 		
@@ -2666,7 +2756,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				//log(0, "Update states cleared.");
 				statuses.put("clear local object update states", true);
 			} catch (XQException e1) {
-				log(2, "Clearing update states of local objects failed: ", e1);
+				log(4, "Clearing update states of local objects failed: ", e1);
 				statuses.put("clear local object update states", false);
 			}
 		}
@@ -2684,17 +2774,19 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// XXX neue oder modifizierte configs holen
 		try	{
 			getModifiedConfig(monitor);
-			statuses.put("update remote configs modifications", true);
+			statuses.put("download remote configs modifications", true);
+			statusReportFlush(log(0, "Downloaded modified configs from remote."));
 		} catch (PDRAlliesClientException e1) {
-			updateStatus = Status.CANCEL_STATUS;
+			//updateStatus = Status.CANCEL_STATUS;
 			success = false;
-			log(2, "Failed to download modified classification configurations ", e1);
+			statusReportFlush(log(2, "Failed to download modified classification configurations ", e1));
 			statuses.put("update remote configs modifications", false);
 		}
 
 		// frage zeitpunkt des letzten updates aus lokaler datenbank ab
 		// (default wert bei fehlern ist 1.1.2011)
 		Date lastUpdateLocal = _idService.getUpdateTimeStamp();
+		statusReportFlush(log(0, "Time of latest update as stored in local DB: "+lastUpdateLocal));
 		
 		
 		// push locally new [XXX], get ALL remote users and save them to local DB
@@ -2705,7 +2797,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			updateUsers(userID, password, monitor); // TODO log attempt utilities getObjects
 			statuses.put("update remote user modifications", true);
 		} catch (Exception e) {
-			log(2, "Synchronization of local and remote user obejcts failed: ", e);
+			updateStatus.add(log(2, "Synchronization of local and remote user obejcts failed: ", e));
 			success = false;
 			statuses.put("update remote user modifications", false);
 		}
@@ -2718,29 +2810,31 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// get remote repo clock
 		try	{
 			currentUpdate = AEConstants.ADMINDATE_FORMAT.parse(Repository.getTime());
+			statusReportBuf(log(0, "Current Server Time: "+currentUpdate));
 		} catch (Exception e){
 			// fallback: local time
-			log(2, "Retrieval of remote repo's server time failed, use local time instead", e);
+			statusReportBuf(log(2, "Retrieval of remote repo's server time failed, use local time instead", e));
 			currentUpdate = _facade.getCurrentDate();
 		}
 		
 		// XXX ist es ein problem, hier schon den timestamp des laufenden updates zu bestimmen?
-		log(1, "Local DB:\nSaved Timestamp of most recent repo update: "+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)+"\n"
-				+"established timestamp of currently running update: " + AEConstants.ADMINDATE_FORMAT.format(currentUpdate));
+		statusReportBuf(log(1, "Local DB:\nSaved Timestamp of most recent repo update: "+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)+"\n"
+				+"established timestamp of currently running update: " + AEConstants.ADMINDATE_FORMAT.format(currentUpdate)));
 
 		// wenn letztes update der lokalen instanz nach 2011 war, also glaubwuerdig ist:
 		if (lastUpdateLocal.after(AEConstants.FIRST_EVER_UPDATE_TIMESTAMP)) {
 			try	{
 				// runterladen & speichern von objekten die auf remote seit lastUpdateLocal geaendert wurden
 				updateModifiedObjects(monitor, lastUpdateLocal);
+				statusReportFlush(log(1, "Downloades modified objects from server."));
 				statuses.put("update remote object modifications", true);
 			} catch (PDRAlliesClientException e) {
-				updateStatus = log(2, "Download of remote modified objects failed", e);
+				statusReportFlush(log(4, "Download of remote modified objects failed", e));
 				statuses.put("update remote object modifications", false);
 				success = false;
 			} catch (Exception e) {
 				success = false;
-				log(2, "Download of remote modified objects failed", e);
+				statusReportFlush(log(4, "Download of remote modified objects failed", e));
 				statuses.put("update remote object modifications", false);
 			}
 		} // wenn letztes update der lokalen instanz erstes update ueberhaupt war??? 
@@ -2752,13 +2846,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 				updateAllOccupiedObjects(monitor); // TODO log attempt on utilities.getObjects
 				statuses.put("clone remote objects", true);
 			} catch (PDRAlliesClientException e) {
-				updateStatus = Status.CANCEL_STATUS;
+				//updateStatus = Status.CANCEL_STATUS;
 				success = false;
-				log(2, "Download of remote repo failed ", e);
+				updateStatus.add(log(2, "Download of remote repo failed ", e));
 				statuses.put("clone remote objects", false);
 			} catch (Exception e) {
 				success = false;
-				log(2, "Download of remote repo failed ", e);
+				updateStatus.add(log(2, "Download of remote repo failed ", e));
 				statuses.put("clone remote objects", false);
 			}
 		}
@@ -2769,6 +2863,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try {
 				// schreibe timestamp der laufenden synchro in DB
 				_idService.setUpdateTimeStamp(currentUpdate);
+				statusReportBuf(log(0, "Save time of current update to local DB: "+currentUpdate));
 			} catch (XQException e)	{
 				log(2, "Updating local DB timestamp "+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)
 						+" to "+AEConstants.ADMINDATE_FORMAT.format(currentUpdate)+" failed.", e);
@@ -2779,12 +2874,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 				msg += st.getKey() + ": " + st.getValue() + "\n";
 			log(2, msg);
 		}
-		log(1, "Timestamp of running update: "+ AEConstants.ADMINDATE_FORMAT.format(currentUpdate)
+		statusReportFlush(log(1, "Timestamp of running update: "+ AEConstants.ADMINDATE_FORMAT.format(currentUpdate)
 				+ "\nTimestamp of latest update as saved in local DB: "
-				+AEConstants.ADMINDATE_FORMAT.format(_idService.getUpdateTimeStamp()));
+				+AEConstants.ADMINDATE_FORMAT.format(_idService.getUpdateTimeStamp())));
 
 		monitor.done();
-		return updateStatus;
+		return statusReport();
 
 	}
 
@@ -3090,16 +3185,17 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @return the i status
 	 * @throws Exception
 	 */
-	private IStatus updateModifiedObjects(final IProgressMonitor monitor, final Date date) throws Exception
+	private void updateModifiedObjects(final IProgressMonitor monitor, final Date date) throws Exception
 	{
 		String col = "util";
 		String name;
-		monitor.subTask("Connecting to Repository...");
-		log(1, "Query remote objects with modifications since "+AEConstants.ADMINDATE_FORMAT.format(date));
+		monitor.subTask("Get modified objects on remote...");
+		statusReportBuf(log(1, "Query remote objects with modifications since "+AEConstants.ADMINDATE_FORMAT.format(date)));
 		List<String> modObjs = Repository.getModifiedObjects(_repositoryId, _projectId,
 				AEConstants.ADMINDATE_FORMAT.format(date));
 		// calculate total work
-
+		statusReportAttach(log(1, "Server response: "+modObjs.size()+" modified objects."));
+		
 		monitor.beginTask("Updating from Repository. Number of Objects: " + modObjs.size(), modObjs.size());
 		Vector<String> pIds = new Vector<String>(modObjs.size());
 		Vector<String> rIds = new Vector<String>(modObjs.size());
@@ -3109,7 +3205,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		if (modObjs.size() < 0) {
 			monitor.subTask("Your Database has already been updated. No Update necessary");
 		} else	{
-			log(1, "Retrieved "+modObjs.size()+" modified objects from remote. Begin to save to local DB..");
+			statusReportBuf(log(1, "Retrieved "+modObjs.size()+" modified objects from remote. Begin to save to local DB.."));
 			monitor.subTask("Inserting Modified Objects into Local DB...");
 
 			for (String s : modObjs) {
@@ -3139,12 +3235,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 				// die remote version jedoch ebenfalls neuer ist als das letzte lokale update. Ist das schlimm oder
 				// wird das nachher beim conflict handling bemerkt?
 				if (!s.startsWith("no path in db registry") && compareVersions(s, col, name))
-					synchronized (_dbCon) { 
+					synchronized (_dbCon) {
+						statusReportAttach(log(1, "Save remote object to local DB: "+name));
 						System.out.println("Save object modified on server to local DB: "+col+" "+name+" "+s);
 						_dbCon.store2DB(s, col, name, false);
 					}
+				monitor.worked(1);
 			}
-			monitor.worked(1);
 		}
 
 		monitor.subTask("Optimizing Database Index...");
@@ -3158,12 +3255,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 		_dbCon.optimize(col);
 		monitor.subTask("Processing Update State of Objects...");
 
+		statusReportBuf(log(1, "Overwrite local object update status"));
 		for (String id : pIds) {
 			try	{
 				_facade.getPersonsUpdateState().put(id, 1);
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				statusReportAttach(log(IStatus.WARNING, "Could not set update state for person "+id, e));
 			}
 		}
 		_idService.insertIdUpdatedObjects(pIds, "pdrPo");
@@ -3171,8 +3268,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try	{
 				_facade.getAspectsUpdateState().put(id, 1);
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				statusReportAttach(log(IStatus.WARNING, "Could not set update state for aspect "+id, e));
 			}
 		}
 		_idService.insertIdUpdatedObjects(aIds, "pdrAo");
@@ -3180,13 +3276,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try {
 				_facade.getReferencesUpdateState().put(id, 1);
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);iLogger.log(log);
+				statusReportAttach(log(IStatus.WARNING, "Could not set update state for reference "+id, e));
 			}
 		}
 		_idService.insertIdUpdatedObjects(rIds, "pdrRo");
 
-		return Status.OK_STATUS;
 	}
 
 	@Override

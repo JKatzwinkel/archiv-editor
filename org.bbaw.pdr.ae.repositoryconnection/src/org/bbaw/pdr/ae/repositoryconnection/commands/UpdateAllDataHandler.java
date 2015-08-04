@@ -29,16 +29,14 @@
  */
 package org.bbaw.pdr.ae.repositoryconnection.commands;
 
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
-
-import javax.xml.stream.XMLStreamException;
 
 import org.bbaw.pdr.ae.common.NLMessages;
 import org.bbaw.pdr.ae.control.core.UserRichtsChecker;
 import org.bbaw.pdr.ae.control.facade.Facade;
 import org.bbaw.pdr.ae.control.interfaces.IUpdateManager;
 import org.bbaw.pdr.ae.model.User;
+import org.bbaw.pdr.ae.repositoryconnection.view.RepoUpdateStatusDialog;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.IHandler;
@@ -93,7 +91,7 @@ public class UpdateAllDataHandler implements IHandler
 			{
 				dialog.run(true, true, new IRunnableWithProgress()
 				{
-					private Object _updateStatus;
+					private IStatus _updateStatus;
 
 					@Override
 					public void run(final IProgressMonitor monitor)
@@ -208,23 +206,45 @@ public class UpdateAllDataHandler implements IHandler
 								Display display = workbench.getDisplay();
 								Shell shell = new Shell(display);
 								String info = null;
-								if (_updateStatus != null && _updateStatus.equals(Status.OK_STATUS))
-								{
-									info = NLMessages.getString("Command_update_successful");
-								}
-								else {
-									if (_updateStatus.equals(Status.CANCEL_STATUS)) {
+								if (_updateStatus != null)
+									if (_updateStatus.isMultiStatus()) {
+										
 										info = NLMessages.getString("Command_update_error");
+										for (IStatus status : _updateStatus.getChildren()) {
+											info += "\n\n" + status.getMessage();
+											Throwable e = status.getException();
+											if (e != null) {
+												info += "\n\n" + e.getMessage();
+												for (StackTraceElement ste : e.getStackTrace())
+													info += "\n" + ste;
+											}
+										}
+										RepoUpdateStatusDialog statusDialog = new RepoUpdateStatusDialog(shell, _updateStatus,
+												_updateStatus.isOK() 
+												? NLMessages.getString("Command_update_successful")
+												: NLMessages.getString("Command_update_error"));
+										statusDialog.setTitle("Update Status Report");
+										statusDialog.open(); 										
+										
 									} else {
-										info = NLMessages.getString("Command_update_error_server");
-										info += "\n\n" + ((Status)_updateStatus).getMessage();
+										if (_updateStatus.equals(Status.OK_STATUS))	{
+											info = NLMessages.getString("Command_update_successful");
+										}
+										else {
+											if (_updateStatus.equals(Status.CANCEL_STATUS)) {
+												info = NLMessages.getString("Command_update_error");
+											} else {
+												info = NLMessages.getString("Command_update_error_server");
+												info += "\n\n" + ((Status)_updateStatus).getMessage();
+												info += "\n\n" + _updateStatus.getException().getStackTrace();
+											}
+										}
+										MessageDialog infoDialog = new MessageDialog(shell, info, null, info,
+												MessageDialog.INFORMATION,
+												new String[]
+												{"OK"}, 0); //$NON-NLS-1$
+										infoDialog.open(); 
 									}
-								}
-								MessageDialog infoDialog = new MessageDialog(shell, info, null, info,
-										MessageDialog.INFORMATION,
-										new String[]
-										{"OK"}, 0); //$NON-NLS-1$
-								infoDialog.open();
 								return Status.OK_STATUS;
 							}
 						};
