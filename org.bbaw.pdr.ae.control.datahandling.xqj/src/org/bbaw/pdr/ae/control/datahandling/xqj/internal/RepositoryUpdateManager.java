@@ -1424,10 +1424,16 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 */
 	private String makeValidPDRObjectXML(String xml) {
 		PdrId id = new PdrId(extractPdrId(xml));
-		if (id.getType().equals("pdrRo")) return removeRefPrefix(makeValidXMLReference(xml));
-		if (id.getType().equals("pdrPo")) return removePersonPrefix(makeValidXMLPerson(xml));
-		if (id.getType().equals("pdrAo")) return removeAspectPrefixes(makeValidXMLAspect(xml));
-		log(2, "Didn't delegate XML validation/validization. Possibly invalid.");
+		try {
+			if (id.getType().equals("pdrRo")) return removeRefPrefix(makeValidXMLReference(xml));
+			if (id.getType().equals("pdrPo")) return removePersonPrefix(makeValidXMLPerson(xml));
+			if (id.getType().equals("pdrAo")) return removeAspectPrefixes(makeValidXMLAspect(xml));
+			log(2, "Didn't delegate XML validation/validization. Possibly invalid.");
+		} catch (Exception e) {
+			log(2, "XML could not be handled.", e);
+			log(2, xml);
+			return null;
+		}
 		return xml;
 	}
 	
@@ -1642,18 +1648,19 @@ public class RepositoryUpdateManager implements IUpdateManager
 			newObjsXml.addAll(_mainSearcher.getNewPersons());
 			newObjsXml.addAll(_mainSearcher.getNewAspects());
 			// extract PdrId from object XML, validate XML, prepare dependency dict
+			statusReportBuf(log(1, "New local objects: "+newObjsXml.size()));
 			for (String s : newObjsXml) {
 				String id = extractPdrId(s); // extract pdr id from xml
 				String xml = makeValidPDRObjectXML(s); // validate xml repr (and remove ns prefixes)
 				if (xml != null) {
 					newObjsIds.add(id);
 					dependingOn.put(id, new TreeSet<String>());
+					// find and register dependencies of object
+					dependencies.put(id, findLinkedLocalObjects(xml));
 				} else {
-					log(2, "XML seems to be invalid, exempt from ingestion:\n"+xml);
-					failures.add(id); // TODO: excempt dependent objects
+					statusReportAttach(log(2, "XML seems to be invalid, exempt from ingestion:\n"+s));
+					failures.add(id);
 				}
-				// find and register dependencies of object
-				dependencies.put(id, findLinkedLocalObjects(xml));
 			}
 			// generate dict of depending objects from dependency map, 
 			for (String i : newObjsIds) 
@@ -1705,8 +1712,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// sollte man hier oder so die von diesen abhaengigen objekte ebenfalls rausfischen..!!!
 			TreeSet<String> faildeps = new TreeSet<String>();
 			for (String i : failures)
-				faildeps.addAll(dependingOn.get(i));
+				if (dependingOn.containsKey(i))
+					faildeps.addAll(dependingOn.get(i));
 			failures.addAll(faildeps);
+			if (failures.size() > 0)
+				statusReportAttach(log(2, "Objects not fit for ingestion: "+failures.size()));
 				
 			for (String i : objsIdqueue)
 				System.out.println(i);
