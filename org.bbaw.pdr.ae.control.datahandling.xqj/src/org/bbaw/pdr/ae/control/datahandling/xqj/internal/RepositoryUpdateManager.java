@@ -621,7 +621,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 					// PREPARE ASPECT CONFLICT RESOLUTION
 					if (_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty()) {
-						log(1, "Number of aspect object conflicts: "+_conflictingRepAspects.size());
+						statusReportBuf(log(1, "Number of aspect object conflicts: "+_conflictingRepAspects.size()));
 						AspectSaxHandler handler = new AspectSaxHandler(new PdrObject[]	{}, monitor);
 						conAspects = new Vector<PDRObjectsConflict>(_conflictingRepAspects.size());
 						for (String s : _conflictingRepAspects)	{
@@ -640,18 +640,18 @@ public class RepositoryUpdateManager implements IUpdateManager
 									parsedAspect = null;
 									oConflict.setLocalObject(_facade.getAspect(new PdrId(id)));
 									conAspects.add(oConflict);
-									log(1, "Prepare conflict resolution for aspect "+id);
+									statusReportAttach(log(1, "Prepare conflict resolution for aspect "+id));
 								} catch (Exception e) {
-									log(2, "Conflict res preparation failed for aspect "+id, e);
+									statusReportAttach(log(2, "Conflict res preparation failed for aspect "+id, e));
 								}
 							}
 						}
-						log(1, "Scheduled "+conAspects.size()+" resolutions. Total number of conflicts: "+_conflictingRepAspects);
+						statusReportAttach(log(1, "Scheduled "+conAspects.size()+" resolutions. Total number of conflicts: "+_conflictingRepAspects));
 					}
 					
 					// PREPARE PERSON CONFLICT RESOLUTION
 					if (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty()) {
-						log(1, "Number of person object conflicts: "+_conflictingRepPersons.size());
+						statusReportBuf(log(1, "Number of person object conflicts: "+_conflictingRepPersons.size()));
 						conPersons = new Vector<PDRObjectsConflict>(_conflictingRepPersons.size());
 						PersonSaxHandler handler = new PersonSaxHandler();
 						for (String s : _conflictingRepPersons)	{
@@ -680,12 +680,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 									parsedPerson = null;
 									oConflict.setLocalObject(_facade.getPdrObject(new PdrId(id)));
 									conPersons.add(oConflict);
-									log(1, "Prepare conflict resolution for person "+id);
+									statusReportAttach(log(1, "Prepare conflict resolution for person "+id));
 								} catch (Exception e) {
-									log(2, "Conflict resolution prep failed for person "+id, e);
+									statusReportAttach(log(2, "Conflict resolution prep failed for person "+id, e));
 								}
 							}
-							log(1, "Scheduled "+conPersons.size()+" resolutions. Total number of conflicts: "+_conflictingRepPersons);
+							statusReportAttach(log(1, "Scheduled "+conPersons.size()+" resolutions. Total number of conflicts: "+_conflictingRepPersons));
 						}
 					}
 					
@@ -693,7 +693,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					if (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty()) {
 					     // XXX this might fix nullpointer problem of issue 3132
 						PDRObjectDisplayNameProcessor dnp = new PDRObjectDisplayNameProcessor();
-						log(1, "Number of reference object conflicts: "+_conflictingRepReferences.size());
+						statusReportBuf(log(1, "Number of reference object conflicts: "+_conflictingRepReferences.size()));
 						conReferences = new Vector<PDRObjectsConflict>(_conflictingRepReferences.size());
 						for (String s : _conflictingRepReferences) {
 							id = extractPdrId(s);
@@ -715,17 +715,17 @@ public class RepositoryUpdateManager implements IUpdateManager
 									parsedReference = null;
 									oConflict.setLocalObject(_facade.getReference(new PdrId(id)));
 									conReferences.add(oConflict);
-									log(1, "Prepare conflict resolution for reference "+id);
+									statusReportAttach(log(1, "Prepare conflict resolution for reference "+id));
 								} catch (Exception e) {
-									log(2, "Conflict resolution prep failed for reference "+id, e);
+									statusReportAttach(log(2, "Conflict resolution prep failed for reference "+id, e));
 								}
 							}
-							log(1, "Scheduled "+conReferences.size()+" resolutions. Total number of conflicts: "+_conflictingRepReferences);
+							statusReportAttach(log(1, "Scheduled "+conReferences.size()+" resolutions. Total number of conflicts: "+_conflictingRepReferences));
 						}
 					}
 
 					// conflict resolution dialog
-					log(1, "Open Conflict Resolution Dialog.");
+					statusReportBuf(log(1, "Open Conflict Resolution Dialog."));
 					IWorkbench workbench = PlatformUI.getWorkbench();
 					Display display = workbench.getDisplay();
 					Shell shell = new Shell(display);
@@ -743,7 +743,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						try {
 							_idService.clearAllUpdateStates();
 						} catch (Exception e) {
-							log(2, "Could not clear update states of local objects: ", e);
+							statusReportAttach(log(2, "Could not clear update states of local objects: ", e));
 						}
 						if (conAspects != null && !conAspects.isEmpty())
 							try {
@@ -751,21 +751,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 								// version or by prosponing resolution
 								insertConflictingObjects(conAspects, monitor);
 							} catch (Exception e) {
-								log(2, "Resolution of aspect object conflicts failed: ", e);
+								statusReportAttach(log(2, "Resolution of aspect object conflicts failed: ", e));
 							} 
 						 if (conPersons != null && !conPersons.isEmpty())
 							 try {
 								 // resolve PERSON conflicts by overwrite one way or another or by prosponing
 								 insertConflictingObjects(conPersons, monitor);
 							 } catch (Exception e) {
-								 log(2, "Resolution of person object conflicts failed: ", e);
+								 statusReportAttach(log(2, "Resolution of person object conflicts failed: ", e));
 							 } 
 						 if (conReferences != null && !conReferences.isEmpty())
 							 try {
 								 // resolve reference conflicts just like aspects and persons
 								 insertConflictingObjects(conReferences, monitor);
 							 } catch (Exception e) {
-								log(2, "Resolution of reference object conflicts failed: ", e);
+								statusReportAttach(log(2, "Resolution of reference object conflicts failed: ", e));
 							 }
 					 }
 				// no matter how conflict dialog went:
@@ -781,9 +781,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			 try {
 				job.join();
 			 } catch (InterruptedException e) {
-				log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Conflict resolution UI job failed: ", e);
-				iLogger.log(log);
-				e.printStackTrace();
+				statusReportBuf(log(IStatus.WARNING, "Conflict resolution UI job failed: ", e));
 			}
 	}
 
@@ -805,6 +803,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			List<String> aspects = getModifiedAspects(); // without aodl prefixes
 			if (aspects.size() == 0)
 				return;
+			statusReportBuf(log(1, ""+aspects.size()+" modified aspect objects in local DB."));
 			log(1, "Begin to ingest "+aspects.size()+" modified aspect objects from local DB into remote repo");
 			monitor.beginTask("Ingesting Modified Aspects into Repository. Number of Objects: " + aspects.size(),
 					aspects.size());
@@ -813,14 +812,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 			int begin = 0;
 			int end = (aspects.size() > MODIFIEDOBJECTS_PACKAGE_SIZE) ? MODIFIEDOBJECTS_PACKAGE_SIZE : aspects.size();  
 			Vector<String> subAspects = new Vector<String>(end);
-			for (int i = begin; i < end; i++) {
+			for (int i=begin; i < end; i++) {
 				String xml = aspects.get(i);
 				if (!isValidXMLAspect(xml)) {
 					String xml2 = makeValidXMLAspect(xml);
 					if (xml2 != null) {
 						subAspects.add(xml);
 					} else
-						log(2, "Invalid aspect: "+xml);
+						statusReportAttach(log(2, "Invalid aspect: "+xml));
 				} else
 					subAspects.add(xml);
 			}
@@ -829,9 +828,11 @@ public class RepositoryUpdateManager implements IUpdateManager
 				log(1, "Push "+subAspects.size()+" aspect objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
 				for (String xml : subAspects)
 					System.out.println(xml);
+				statusReportAttach(log(1, "Pushed "+subAspects.size()+" aspect objects to remote."));
 				subConflRepAspects = Repository.modifyObjects(_repositoryId, _projectId, subAspects, false);
 				if (subConflRepAspects != null && !subConflRepAspects.isEmpty()) {
 					log(1, ""+subConflRepAspects.size()+" new conflicts");
+					statusReportAttach(log(1, ""+subConflRepAspects.size()+" new conflicts"));
 					_conflictingRepAspects.addAll(subConflRepAspects);
 				}
 				monitor.worked(subAspects.size());
@@ -847,12 +848,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 						if (xml2 != null) {
 							subAspects.add(xml);
 						} else
-							log(2, "Invalid aspect: "+xml);
+							statusReportAttach(log(2, "Invalid aspect: "+xml));
 					} else
 						subAspects.add(xml);
 				}
 			}
-			log(0, "Done pushing modified aspects objects. Total number of pushed aspects: "+counter+" (modified aspects: "+aspects.size()+")");
+			statusReportBuf(log(0, "Pushed "+counter+" of "+aspects.size()+" modified persons to remote."));
 		}
 	}
 
@@ -1551,6 +1552,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				counter += subUsers.size();
 				subUsers.clear();
 	
+				// XXX what is this doing at the end of the loop?
 				for (int i = begin; i < end; i++) {
 					if (new Integer(extractPdrId(users.get(i)).substring(14)) <= 9)	{
 						standardUsers.add(users.get(i));
@@ -2052,6 +2054,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Vector<String> keepLocalObjects = new Vector<String>();
 
 		String object = null;
+		if (conObjects.isEmpty()) {
+			statusReportBuf(log(0, "No conflicts reported."));
+			return;
+		} else
+			statusReportBuf(log(0, "Process conflict resolution for "+conObjects.size()+" objects."));
+			
 		for (PDRObjectsConflict oc : conObjects) {
 			// 1. conflicts that are resolved by keeping local version
 			if (oc.isKeepLocal() && oc.getLocalObject() != null) {
@@ -2072,7 +2080,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// 2. conflicts that are resolved by deleting local version
 			else if (oc.isOverrideLocal()) {
 				// save remote version of object to local DB
-				log(1, "Save remote version of object "+oc.getRepositoryObject().getDisplayNameWithID()+" to local DB");
+				statusReportAttach(log(1, "Save remote version of object "+oc.getRepositoryObject().getDisplayNameWithID()+" to local DB"));
 				_dbManager.saveToDB(oc.getRepositoryObject(), false);
 				monitor.worked(1);
 			}
@@ -2080,17 +2088,17 @@ public class RepositoryUpdateManager implements IUpdateManager
 			else if (oc.getLocalObject() != null) {// resolve conflict later, save id to be treated as modified.
 				_idService.insertIdModifiedObject(oc.getLocalObject().getPdrId());
 				// ID wird als modified gelistet, auszer sie ist neu. Auf jeden fall soll sie erstmal dirty bleiben
-				log(1, "Prospone conflict resolution of object "+oc.getLocalObject().getPdrId());
+				statusReportAttach(log(1, "Prospone conflict resolution of object "+oc.getLocalObject().getPdrId()));
 			}
 		}
 		
 		// Push local changes to repo for conflicts that have been selected for this handling 
 		if (keepLocalObjects != null && !keepLocalObjects.isEmpty()) {
-			log(1, "Overwrite "+keepLocalObjects.size()+" remote objects with local changes at Project "+_repositoryId+"/"+_projectId);
+			statusReportAttach(log(1, "Overwrite "+keepLocalObjects.size()+" remote objects with local changes at Project "+_repositoryId+"/"+_projectId));
 			Repository.modifyObjects(_repositoryId, _projectId, keepLocalObjects, true); // man beachte: force-flag!
 			monitor.worked(keepLocalObjects.size());
 		}
-		log(0, "Handled "+conObjects.size()+" conflicts");
+		statusReportBuf(log(1, "Handled "+conObjects.size()+" conflicts"));
 	}
 
 	/**
@@ -2446,7 +2454,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 						s.getPlugin(), 
 						s.getCode(), 
 						s.getMessage(), 
-						s.getException()));
+						null));
+				// when wrapper status contains exception, attach it in a new status
+				if (s.getException() != null)
+					((MultiStatus)statusReport.lastElement()).add(
+							new Status(s.getSeverity(),
+									s.getPlugin(),
+									s.getMessage(),
+									s.getException()));
 			}
 			for (IStatus bufs : statusReportBuffer)
 				((MultiStatus)statusReport.lastElement()).add(bufs);
@@ -2746,7 +2761,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				|| (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty())
 				|| (_conflictingRepReferences != null && !_conflictingRepReferences.isEmpty()))
 		{
-			log(1, "Conflicts detected during ingest. Starting to resolve...");
+			statusReportBuf(log(1, "Conflicts detected during ingest. Starting to resolve..."));
 			// all conflicts reported by server during update of modified objects
 			// are being instantiated as PdrObjectsConflict with references
 			// to PDRObject instances for both the local and the remote objects
@@ -2756,17 +2771,18 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// states, then insertobjectconflict method is called 3x, at last facade
 			// refreshes all its data
 			handleObjectsConflicts(monitor);
+			statusReportFlush(log(0, "Conflict handling."));
 		}
 		// injest process completed. clear update states
 		else if (success) {
-			log(0, "Ingest of local changes successfully completed. No conflicts.");
+			statusReportFlush(log(0, "Ingest of local changes successfully completed. No conflicts."));
 			try	{
 				//log(1, "Try to clear update states of local objects");
 				_idService.clearAllUpdateStates();
 				//log(0, "Update states cleared.");
 				statuses.put("clear local object update states", true);
 			} catch (XQException e1) {
-				log(4, "Clearing update states of local objects failed: ", e1);
+				statusReportFlush(log(4, "Clearing update states of local objects failed: ", e1));
 				statuses.put("clear local object update states", false);
 			}
 		}
@@ -3212,9 +3228,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		Vector<String> aIds = new Vector<String>(modObjs.size());
 		Vector<String> uIds = new Vector<String>(modObjs.size());
 
-		if (modObjs.size() < 0) {
+		if (modObjs.size() < 1) {
 			monitor.subTask("Your Database has already been updated. No Update necessary");
-		} else	{
+		} else {
 			statusReportBuf(log(1, "Retrieved "+modObjs.size()+" modified objects from remote. Begin to save to local DB.."));
 			monitor.subTask("Inserting Modified Objects into Local DB...");
 
@@ -3231,8 +3247,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 				if (name.startsWith("pdrRo")) {
 					col = "reference";
-					rIds.add(name); // TODO mods hat kein record/revision element, dafuer wird recordInfo genommen, aber nicht ausgewertet
-					System.out.println("Mods object server sais was modified:\n"+s);
+					rIds.add(name);
 				}
 				if (name.startsWith("pdrUo")) {
 					col = "users";
