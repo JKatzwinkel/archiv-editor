@@ -220,7 +220,7 @@ public class UpdateAllDataHandler implements IHandler
 											}
 										}
 										RepoUpdateStatusDialog statusDialog = new RepoUpdateStatusDialog(shell, _updateStatus,
-												_updateStatus.isOK() 
+												_updateStatus.getSeverity() < IStatus.WARNING 
 												? NLMessages.getString("Command_update_successful")
 												: NLMessages.getString("Command_update_error"));
 										statusDialog.setTitle("Update Status Report");
