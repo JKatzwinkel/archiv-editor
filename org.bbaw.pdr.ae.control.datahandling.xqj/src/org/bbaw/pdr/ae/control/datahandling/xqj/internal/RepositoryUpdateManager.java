@@ -598,7 +598,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * </p>
 	 * @param monitor the monitor
 	 */
-	private void handleObjectsConflicts(final IProgressMonitor monitor)
+	private void handleObjectsConflicts(final IProgressMonitor monitor, final Date timeStamp)
 	{
 		UIJob job = new UIJob("Update Conflict Handling") {
 			 @Override
@@ -621,7 +621,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 
 					// PREPARE ASPECT CONFLICT RESOLUTION
 					if (_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty()) {
-						statusReportBuf(log(1, "Number of aspect object conflicts: "+_conflictingRepAspects.size()));
+						statusReportBuf(log(1, "Number of aspect object conflicts: "+_conflictingRepAspects.size()), monitor);
 						AspectSaxHandler handler = new AspectSaxHandler(new PdrObject[]	{}, monitor);
 						conAspects = new Vector<PDRObjectsConflict>(_conflictingRepAspects.size());
 						for (String s : _conflictingRepAspects)	{
@@ -749,21 +749,21 @@ public class RepositoryUpdateManager implements IUpdateManager
 							try {
 								// resolve aspects conflicts by either overwriting local or remote
 								// version or by prosponing resolution
-								insertConflictingObjects(conAspects, monitor);
+								insertConflictingObjects(conAspects, monitor, timeStamp);
 							} catch (Exception e) {
 								statusReportAttach(log(2, "Resolution of aspect object conflicts failed: ", e));
 							} 
 						 if (conPersons != null && !conPersons.isEmpty())
 							 try {
 								 // resolve PERSON conflicts by overwrite one way or another or by prosponing
-								 insertConflictingObjects(conPersons, monitor);
+								 insertConflictingObjects(conPersons, monitor, timeStamp);
 							 } catch (Exception e) {
 								 statusReportAttach(log(2, "Resolution of person object conflicts failed: ", e));
 							 } 
 						 if (conReferences != null && !conReferences.isEmpty())
 							 try {
 								 // resolve reference conflicts just like aspects and persons
-								 insertConflictingObjects(conReferences, monitor);
+								 insertConflictingObjects(conReferences, monitor, timeStamp);
 							 } catch (Exception e) {
 								statusReportAttach(log(2, "Resolution of reference object conflicts failed: ", e));
 							 }
@@ -2056,7 +2056,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @throws PDRAlliesClientException the pDR allies client exception
 	 * @throws XQException the xQ exception
 	 */
-	private void insertConflictingObjects(Vector<PDRObjectsConflict> conObjects, IProgressMonitor monitor)
+	private void insertConflictingObjects(Vector<PDRObjectsConflict> conObjects, IProgressMonitor monitor, Date timeStamp)
 			throws Exception {
 		Vector<String> keepLocalObjects = new Vector<String>();
 
@@ -2067,9 +2067,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 		} else
 			statusReportBuf(log(0, "Process conflict resolution for "+conObjects.size()+" objects."));
 			
+
 		for (PDRObjectsConflict oc : conObjects) {
 			// 1. conflicts that are resolved by keeping local version
 			if (oc.isKeepLocal() && oc.getLocalObject() != null) {
+				// revision time of local object must be updated in order to get other clients to download it
+				oc.getLocalObject().getRecord().getRevisions().lastElement().setTimeStamp(timeStamp);
+				_dbManager.saveToDB(oc.getLocalObject(), false);
 				// for each conflict to be resolved by keeping the local version, 
 				// test pdr type of local version, then write object XML,
 				// remove NS prefixes, and add XML to list of local objects to be kept
@@ -2785,6 +2789,17 @@ public class RepositoryUpdateManager implements IUpdateManager
 		////////////////////
 		// now we have three update conflict lists for the three object types for mods, podl, aodl
 		//
+
+		// get remote repo clock because we need server time for conflict handling
+		try	{
+			currentUpdate = AEConstants.ADMINDATE_FORMAT.parse(Repository.getTime());
+			statusReportBuf(log(0, "Current Server Time: "+currentUpdate));
+		} catch (Exception e){
+			// fallback: local time
+			statusReportBuf(log(2, "Retrieval of remote repo's server time failed, use local time instead", e));
+			currentUpdate = _facade.getCurrentDate();
+		}
+
 		
 		if ((_conflictingRepAspects != null && !_conflictingRepAspects.isEmpty())
 				|| (_conflictingRepPersons != null && !_conflictingRepPersons.isEmpty())
@@ -2799,7 +2814,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// updateconflict dialog is openened, idservice is asked to clear update
 			// states, then insertobjectconflict method is called 3x, at last facade
 			// refreshes all its data
-			handleObjectsConflicts(monitor);
+			handleObjectsConflicts(monitor, currentUpdate);
 			statusReportFlush(log(0, "Conflict handling."));
 		}
 		// injest process completed. clear update states
@@ -2862,15 +2877,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 			return Status.CANCEL_STATUS;
 		}
 		
-		// get remote repo clock
-		try	{
-			currentUpdate = AEConstants.ADMINDATE_FORMAT.parse(Repository.getTime());
-			statusReportBuf(log(0, "Current Server Time: "+currentUpdate));
-		} catch (Exception e){
-			// fallback: local time
-			statusReportBuf(log(2, "Retrieval of remote repo's server time failed, use local time instead", e));
-			currentUpdate = _facade.getCurrentDate();
-		}
 		
 		// XXX ist es ein problem, hier schon den timestamp des laufenden updates zu bestimmen?
 		statusReportBuf(log(1, "Local DB:\nSaved Timestamp of most recent repo update: "+AEConstants.ADMINDATE_FORMAT.format(lastUpdateLocal)+"\n"
