@@ -297,6 +297,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// if local object is not present, remote object is automatically preferred
 			logmsg += "\nlocal object is null.";
 			repoNewer = true;
+			// extract revision timestamps from remote object
+			try {
+				latestRevRemote = Collections.max(extractRevs(remote, col));
+			} catch (Exception e) {
+				logmsg += "\nCould not determine latest revision timestamp for remote object";
+				repoNewer = false;
+			}
 		}
 		statusReportAttach(log(1, logmsg+"\nTimestamps of latest revisions: local: "+latestRevLocal+", remote: "+latestRevRemote+"\nRemote version newer: "+repoNewer));
 		// return true if local object could not be retrieved or remote object is newer
@@ -372,7 +379,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 	private void getModifiedConfig(final IProgressMonitor monitor) throws Exception {
 		// XXX sollten wir hier nicht mal irgendwo ne exception werfen?
 		synchronized (_dbCon) {
-			monitor.beginTask("Request list of remote classification providers", 1);
+			monitor.beginTask("Request list of remote classification providers", 2);
+			monitor.subTask("");
 			List<String> providers = null;
 			try {
 				log(1, "Attempt to retrieve remote category providers");
@@ -1782,7 +1790,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				}
 			}
 			
-			log(0, "Done pushing NEW local objects. Total number of ingested objects: "+counter+"\n(out of "+newObjsXml.size()+" new objects");
+			statusReportBuf(log(0, "Pushed NEW local objects: "+counter+" out of "+newObjsXml.size()+" new objects"),monitor);
 			return new Vector<String>(failures);
 		}
 	}
@@ -2339,15 +2347,15 @@ public class RepositoryUpdateManager implements IUpdateManager
 			injestNewUsers(userID, password);
 			//log(IStatus.OK, "New Users successfully ingested", null);
 			statuses.put("ingest new users", true);
-			updateStatus.add(log(0, "Ingested new local users"));
+			statusReportFlush(log(0, "Ingested new local users"));
 		} catch (PDRAlliesClientException e) {
-			updateStatus.add(log(IStatus.WARNING, "Exception at ALLIES library while ingesting new users: ", e));
+			statusReportFlush(log(IStatus.WARNING, "Exception at ALLIES library while ingesting new users: ", e));
 			success = false;
 			e.printStackTrace();
 			statuses.put("ingest new users", false);
 		} catch (Exception e) {
 			success = false;
-			updateStatus.add(log(IStatus.WARNING, "Exception while ingesting new users: ", e));
+			statusReportFlush(log(IStatus.WARNING, "Exception while ingesting new users: ", e));
 			e.printStackTrace();
 			statuses.put("ingest new users", false);
 		}
@@ -2611,8 +2619,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 			////////
 			updateUsers(userID, password, monitor); // TODO log attempt utilities getObjects
 			statuses.put("update remote user modifications", true);
+			statusReportFlush(log(0, "Synchronize remote user data."));
 		} catch (Exception e) {
-			updateStatus.add(log(2, "Synchronization of local and remote user obejcts failed: ", e));
+			statusReportFlush(log(2, "Synchronization remote user obejcts failed: ", e));
 			success = false;
 			statuses.put("update remote user modifications", false);
 		}
@@ -2632,7 +2641,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			try	{
 				// runterladen & speichern von objekten die auf remote seit lastUpdateLocal geaendert wurden
 				updateModifiedObjects(monitor, lastUpdateLocal);
-				statusReportFlush(log(1, "Downloades modified objects from server."));
+				statusReportFlush(log(1, "Download modified objects from server."));
 				statuses.put("update remote object modifications", true);
 			} catch (PDRAlliesClientException e) {
 				statusReportFlush(log(4, "Download of remote modified objects failed", e));
@@ -2995,12 +3004,14 @@ public class RepositoryUpdateManager implements IUpdateManager
 	{
 		String col = "util";
 		String name;
+		monitor.beginTask("Retrieving modifications on remote.", 2);
 		monitor.subTask("Get modified objects on remote...");
 		statusReportBuf(log(1, "Query remote objects with modifications since "+AEConstants.ADMINDATE_FORMAT.format(date)));
 		List<String> modObjs = Repository.getModifiedObjects(_repositoryId, _projectId,
 				AEConstants.ADMINDATE_FORMAT.format(date));
 		// calculate total work
-		statusReportAttach(log(1, "Server response: "+modObjs.size()+" modified objects."));
+		monitor.worked(1);
+		statusReportAttach(log(1, "Server response: "+modObjs.size()+" modified objects."), monitor);
 		
 		monitor.beginTask("Updating from Repository. Number of Objects: " + modObjs.size(), modObjs.size());
 		Vector<String> pIds = new Vector<String>(modObjs.size());
@@ -3041,7 +3052,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 				// wird das nachher beim conflict handling bemerkt?
 				if (!s.startsWith("no path in db registry") && compareVersions(s, col, name))
 					synchronized (_dbCon) {
-						statusReportAttach(log(1, "Save remote object to local DB: "+name));
+						statusReportAttach(log(1, "Save remote object to local DB: "+name), monitor);
 						System.out.println("Save object modified on server to local DB: "+col+" "+name+" "+s);
 						_dbCon.store2DB(s, col, name, false);
 					}
@@ -3091,6 +3102,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 	@Override
 	public final IStatus updateUsers(final String userID, final String password, final IProgressMonitor monitor)
 			throws Exception {
+		statusReportBuf(log(0, "Synchronize modified user objects."), monitor);
 		// XXX wieso hier extra nochmal anmelden? passiert in aufrufender methode schon
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
@@ -3120,8 +3132,9 @@ public class RepositoryUpdateManager implements IUpdateManager
 		synchronized (_dbCon) {
 			_dbCon.openCollection(col);
 			log(1, "Download remote repo user objects");
+			monitor.beginTask("Download remote user objects", ranges.size());
 			for (IDRange range : ranges) {
-				System.out.println("remote uodl ID range from " + range.getLowerBound() + " to " + range.getUpperBound());
+				statusReportAttach(log(0, "remote uodl ID range from " + range.getLowerBound() + " to " + range.getUpperBound()),monitor);
 				lowerBound = range.getLowerBound();
 
 				while (upperBound < range.getUpperBound()) {
@@ -3151,6 +3164,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					}*/
 					lowerBound = Math.min(lowerBound + PACKAGE_SIZE, range.getUpperBound());
 				}
+				monitor.worked(1);
 			}
 			_dbCon.optimize(col);
 			_dbCon.openCollection(col);
