@@ -2612,7 +2612,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		statusReportFlush(log(0, "Time of latest update as stored in local DB: "+lastUpdateLocal));
 		
 		
-		// push locally new [XXX], get ALL remote users and save them to local DB
+		// get ALL remote users and save them to local DB
 		try	{
 			////////
 			// USERS
@@ -3119,10 +3119,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp"); // XXX pdrAdmin funktioniert nicht auf musmig server
 			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		}
-		log(1, "Log in remote repo as: "+Configuration.getInstance().getPDRUserID());
-
-		// push all users locally identified as NEW to remote repo
-		injestNewUsers(userID, password); // XXX ist doch quatsch haben wir doch schon gemacht
+		statusReportAttach(log(1, "Log in remote repo as: "+Configuration.getInstance().getPDRUserID()),monitor);
 		
 		// retrieve remote repo user ID ranges 
 		List<IDRange> ranges = Utilities.getOccupiedObjectIDRanges(PDRType.USER, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);
