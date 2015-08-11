@@ -649,6 +649,13 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 	}
 	
 	@Override
+	protected Point getInitialSize() {
+		return new Point(700, 750);
+	}
+	
+	
+	
+	@Override
 	public void create() {
 		super.create();
 		setTitle(NLMessages.getString("AspectEditorDialog_titelAspectEditor")); //$NON-NLS-1$
@@ -1198,7 +1205,7 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 		_gridLayout.numColumns = 1;
 		Composite comp = parent;
 		ScrolledComposite baseScrolledComp = null;
-		if (AEVIEWConstants.IS_SMALL_MONITOR_DIMENSION)
+		if (AEVIEWConstants.IS_SMALL_MONITOR_DIMENSION) // only on displays with less than 750 pixels height
 		{
 			parent.setLayout(new GridLayout(1, false));
 			((GridLayout)parent.getLayout()).marginHeight = 0;
@@ -1231,7 +1238,7 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 			baseScrolledComp.setContent(comp);
 		}
 		_gridData = new GridData();
-		_gridData.verticalAlignment = GridData.FILL;
+		_gridData.verticalAlignment = GridData.BEGINNING;
 		_gridData.horizontalAlignment = GridData.FILL;
 		_gridData.horizontalSpan = 1;
 		_gridData.grabExcessHorizontalSpace = true;
@@ -1244,8 +1251,8 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 		((GridData) _mainTabFolder.getLayoutData()).grabExcessHorizontalSpace = true;
 		((GridData) _mainTabFolder.getLayoutData()).grabExcessVerticalSpace = true;
 		((GridData) _mainTabFolder.getLayoutData()).horizontalAlignment = SWT.FILL;
-		((GridData) _mainTabFolder.getLayoutData()).minimumHeight = 430;
-		((GridData) _mainTabFolder.getLayoutData()).heightHint = 550;
+		((GridData) _mainTabFolder.getLayoutData()).minimumHeight = 600;
+		((GridData) _mainTabFolder.getLayoutData()).heightHint = 630;
 
 		((GridData) _mainTabFolder.getLayoutData()).minimumWidth = 770;
 
@@ -1437,7 +1444,8 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 		_frontComposite.setLayoutData(new GridData());
 		((GridData) _frontComposite.getLayoutData()).verticalAlignment = SWT.FILL;
 		((GridData) _frontComposite.getLayoutData()).grabExcessVerticalSpace = true;
-
+		((GridData) _frontComposite.getLayoutData()).minimumHeight = 700;
+		
 		_frontTabItem.setControl(_frontComposite);
 
 		Group classifierGroup = new Group(_frontComposite, SWT.NONE);
@@ -2905,6 +2913,9 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 		((GridData) _editorComposite.getLayoutData()).grabExcessVerticalSpace = true;
 		((GridData) _editorComposite.getLayoutData()).horizontalAlignment = SWT.FILL;
 		((GridData) _editorComposite.getLayoutData()).grabExcessHorizontalSpace = true;
+		((GridData) _editorComposite.getLayoutData()).heightHint = 50;
+		((GridData) _editorComposite.getLayoutData()).minimumHeight = 40;
+		
 		Group notiGroup = new Group(_editorComposite, SWT.SHADOW_IN);
 		notiGroup.setText(NLMessages.getString("Editor_notificationOfAspect")); //$NON-NLS-1$
 		notiGroup.setLayoutData(new GridData());
@@ -2913,6 +2924,8 @@ public class AspectEditorDialog extends TitleAreaDialog implements ISelectionPro
 		((GridData) notiGroup.getLayoutData()).grabExcessVerticalSpace = true;
 		((GridData) notiGroup.getLayoutData()).grabExcessHorizontalSpace = true;
 		((GridData) notiGroup.getLayoutData()).verticalAlignment = SWT.FILL;
+		((GridData) notiGroup.getLayoutData()).heightHint = 50;
+		((GridData) notiGroup.getLayoutData()).minimumHeight = 40;
 		notiGroup.setLayout(new GridLayout());
 
 		_markupEditor.setComposite(notiGroup);

@@ -4,13 +4,11 @@ bin/
 .metadata/org.bbaw.pdr.ae.common/baseXHOME
 .metadata
 .settings/
-org.bbaw.pdr.ae.standalone/org.bbaw.pdr.ae.featureProduct.product.launch
 
 ae-p2/
 metadata.tar.gz
 net.sf.vex.editor/
 net.sf.vex.toolkit/
-org.bbaw.pdr.ae.db.basex.711/
 org.bbaw.pdr.ae.help.nl1/.classpath
 org.bbaw.pdr.ae.help/.classpath
 org.bbaw.pdr.ae.standalone.product.build/plugin_customization.ini
