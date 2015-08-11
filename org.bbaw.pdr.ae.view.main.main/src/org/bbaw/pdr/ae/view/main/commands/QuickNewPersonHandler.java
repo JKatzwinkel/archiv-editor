@@ -144,6 +144,8 @@ public class QuickNewPersonHandler extends AbstractHandler implements IHandler
 
 				_facade.setCurrentPerson(_facade.getPerson(personId));
 				Facade.getInstanz().fireUpdateEvent("newPersonTreeRequiered");
+			} else {
+				System.out.println("Aspect editor dialog aborted.");
 			}
 			// hier wird injestet
 		}

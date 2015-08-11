@@ -396,7 +396,7 @@ public final class Facade extends Observable implements IConfigFacade
 	}
 
 	/**
-	 * Delete aspect.
+	 * Delete aspect from currently loaded aspect lists, person objects and reference objetcs, but not from local DB.
 	 * @param a the a
 	 */
 	public void deleteAspect(final Aspect a)
@@ -416,7 +416,7 @@ public final class Facade extends Observable implements IConfigFacade
 										.getType().equals("pdrPo"))
 						{
 							pId = a.getRelationDim().getRelationStms().get(i).getRelations().get(j).getObject();
-							removeAspectOfPerson(_allPersons.get(pId), a);
+							removeAspectOfPerson(_allPersons.get(pId), a); // XXX from all persons please
 
 						}
 
@@ -430,7 +430,7 @@ public final class Facade extends Observable implements IConfigFacade
 				Person p = _allPersons.get(pId);
 				if (p != null)
 				{
-					removeAspectOfPerson(_allPersons.get(pId), a);
+					removeAspectOfPerson(_allPersons.get(pId), a); // XXX from all person objects, please!
 				}
 
 			}

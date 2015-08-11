@@ -86,6 +86,9 @@ public class NewPersonAspectEditorHandler implements IHandler
 		{
 			_facade.setCurrentPerson(p);
 			Facade.getInstanz().fireUpdateEvent("newPersonTreeRequiered");
+		} else {
+			System.out.println("Creation of new Person aborted. Delete new aspect "+a);
+			//_facade.deleteAspect(a);
 		}
 		return null;
 	}
