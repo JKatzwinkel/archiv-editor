@@ -67,8 +67,7 @@ public class WriteLocalBackupHandler extends AbstractHandler implements
 
 		String message = NLMessages.getString("WriteLocalBackupHandler_warning0"); //$NON-NLS-1$
 		message += NLMessages.getString("WriteLocalBackupHandler_warning1"); //$NON-NLS-1$
-		MessageDialog messageDialog = new MessageDialog(HandlerUtil.getActiveWorkbenchWindow(
-				event).getShell(), NLMessages.getString("WriteLocalBackupHandler_title"), null, //$NON-NLS-1$
+		MessageDialog messageDialog = new MessageDialog(new Shell(PlatformUI.getWorkbench().getDisplay()), NLMessages.getString("WriteLocalBackupHandler_title"), null, //$NON-NLS-1$
 		        message, MessageDialog.WARNING,
 		        new String[] {NLMessages.getString("Handler_yes"), NLMessages.getString("Handler_no") }, 1); //$NON-NLS-1$ //$NON-NLS-2$
 		if (messageDialog.open() == 0)
