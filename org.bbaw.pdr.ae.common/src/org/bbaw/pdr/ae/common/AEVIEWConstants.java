@@ -71,7 +71,7 @@ public final class AEVIEWConstants
 	      // Note that it may include the dimensions of multiple monitors. 
 	      rect = display.getBounds();
 	   }
-	   IS_SMALL_MONITOR_DIMENSION = (rect.height < 650);
+	   IS_SMALL_MONITOR_DIMENSION = (rect.height < 750);
 	}
 
 }
