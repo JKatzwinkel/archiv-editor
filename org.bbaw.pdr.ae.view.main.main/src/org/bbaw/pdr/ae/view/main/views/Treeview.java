@@ -486,8 +486,11 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 								String stats = "New objects [r/p/a]: "+
 									_mainSearcher.getNewReferences().size()+"/"+
 									_mainSearcher.getNewPersons().size()+"/"+
-									_mainSearcher.getNewAspects().size()+
-									" - Modified objects [r/p/a]: ";
+									_mainSearcher.getNewAspects().size();
+								stats += " - Modified objects [r/p/a]: " + 
+									_facade.getIdService().getModifiedReferenceIds().size() + "/" +
+									_facade.getIdService().getModifiedPersonIds().size() + "/" +
+									_facade.getIdService().getModifiedAspectIds().size();
 								setStatusLine(stats);
 								} catch (Exception e) {
 									setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
@@ -833,9 +836,9 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 						_mainSearcher.getNewPersons().size()+"/"+
 						_mainSearcher.getNewAspects().size()+
 						" - Modified objects [r/p/a]: "+
-						_facade.getIdService().getModifiedReferenceIds()+"/"+
-						_facade.getIdService().getModifiedPersonIds()+"/"+
-						_facade.getIdService().getModifiedAspectIds();
+						_facade.getIdService().getModifiedReferenceIds().size()+"/"+
+						_facade.getIdService().getModifiedPersonIds().size()+"/"+
+						_facade.getIdService().getModifiedAspectIds().size();
 					setStatusLine(stats);
 					} catch (Exception e) {
 						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
@@ -2218,8 +2221,11 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 					String stats = "New objects [r/p/a]: "+
 						_mainSearcher.getNewReferences().size()+"/"+
 						_mainSearcher.getNewPersons().size()+"/"+
-						_mainSearcher.getNewAspects().size()+
-						" - Modified objects [r/p/a]: ";
+						_mainSearcher.getNewAspects().size();
+					stats += " - Modified objects [r/p/a]: " + 
+							_facade.getIdService().getModifiedReferenceIds().size() + "/" +
+							_facade.getIdService().getModifiedPersonIds().size() + "/" +
+							_facade.getIdService().getModifiedAspectIds().size();					
 					setStatusLine(stats);
 					} catch (Exception e) {
 						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
