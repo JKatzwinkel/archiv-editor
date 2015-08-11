@@ -75,12 +75,6 @@
       </command>
       <command
             categoryId="org.bbaw.pdr.ae.category.file"
-            defaultHandler="org.bbaw.pdr.ae.view.main.commands.NewAspectHandler"
-            id="org.bbaw.pdr.ae.view.main.commands.NewAspect"
-            name="%command.name.27">
-      </command>
-      <command
-            categoryId="org.bbaw.pdr.ae.category.file"
             id="org.bbaw.pdr.ae.view.main.commands.NewPerson"
             name="%command.name.28">
       </command>

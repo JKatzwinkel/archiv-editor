@@ -95,7 +95,7 @@
          <toolbar
                id="org.bbaw.pdr.commands.toolbar.aspect">
             <command
-                  commandId="org.bbaw.pdr.ae.view.main.commands.NewAspect"
+                  commandId="org.bbaw.pdr.ae.view.main.commands.AddNewAspect"
                   icon="platform:/plugin/org.bbaw.pdr.ae.common/src/org/bbaw/pdr/ae/common/icons/toolbar_aspect_new.png"
                   label="%command.label.40"
                   style="push"
@@ -430,7 +430,7 @@
                label="%menu.label.aspect"
                mnemonic="A">
             <command
-                  commandId="org.bbaw.pdr.ae.view.main.commands.NewAspect"
+                  commandId="org.bbaw.pdr.ae.view.main.commands.AddNewAspect"
                   icon="platform:/plugin/org.bbaw.pdr.ae.common/src/org/bbaw/pdr/ae/common/icons/aspect_new.png"
                   label="%command.label.40"
                   style="push">
