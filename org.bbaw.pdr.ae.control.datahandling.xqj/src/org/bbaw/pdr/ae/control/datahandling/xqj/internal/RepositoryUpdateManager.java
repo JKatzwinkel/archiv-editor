@@ -706,6 +706,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 									ReferenceMods parsedReference = (ReferenceMods) handler.getResultObject();
 									if (parsedReference != null) {
 										dnp.processDisplayName(parsedReference); // XXX this produces a long display name and possibly fixes nullpointer exception in conflict dialog
+										dnp.processDisplayNameLong(parsedReference);
 									    oConflict.setRepositoryObject(parsedReference); // FIXME: updateconflictdialog fails because of nullpointer when probably this object's longdisplayname is accessed
 									    // TODO: does this error (longdisplayname, conflict dialog) still occur as of v2.3.10??
 									}

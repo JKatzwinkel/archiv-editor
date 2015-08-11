@@ -1442,7 +1442,7 @@ public class UpdateConflictDialog extends TitleAreaDialog
 						new Label(repLComp, SWT.NONE).setImage(_imageReg.get(IconsInternal.REPOSITORY));
 						Label rep = new Label(repLComp, SWT.NONE);
 						rep.setBackground(rep.getParent().getBackground());
-						rep.setText("Version from Repository");
+						rep.setText("Remote Version");
 						rep.pack();
 						Label historyLabelRep = new Label(repLComp, SWT.NONE);
 						historyLabelRep.setText(NLMessages.getString("Editor_revision_history")); //$NON-NLS-1$
@@ -1635,7 +1635,7 @@ public class UpdateConflictDialog extends TitleAreaDialog
 							}
 						};
 						radios[0] = new Button(buttonComp, SWT.RADIO | SWT.TOP);
-						radios[0].setText("Override Local Copy");
+						radios[0].setText(NLMessages.getString("Conflict_keep_remote"));
 						radios[0].setData("obj", 0);
 						radios[0].setData("repo", textRepo);
 						radios[0].setData("local", textLocal);
@@ -1647,7 +1647,7 @@ public class UpdateConflictDialog extends TitleAreaDialog
 						new Label(buttonComp, SWT.NONE).setText("");
 
 						radios[1] = new Button(buttonComp, SWT.RADIO | SWT.BOTTOM);
-						radios[1].setText("Resolve later");
+						radios[1].setText(NLMessages.getString("Conflict_resolve_later"));
 						radios[1].setData("obj", 1);
 						radios[1].setData("repo", textRepo);
 						radios[1].setData("local", textLocal);
@@ -1660,7 +1660,7 @@ public class UpdateConflictDialog extends TitleAreaDialog
 						new Label(buttonComp, SWT.NONE).setText("");
 
 						radios[2] = new Button(buttonComp, SWT.RADIO | SWT.BOTTOM);
-						radios[2].setText("Keep Local Copy");
+						radios[2].setText(NLMessages.getString("Conflict_keep_local"));
 						radios[2].setData("obj", 2);
 						radios[2].setData("repo", textRepo);
 						radios[2].setData("local", textLocal);
@@ -1981,14 +1981,15 @@ public class UpdateConflictDialog extends TitleAreaDialog
 		text.setData("id", cr.getPdrId().toString()); //$NON-NLS-1$
 
 		text.append("\n"); //$NON-NLS-1$
-		if (cr.getDisplayNameLong() != null)
-		{
-			text.append(cr.getDisplayNameLong());
-		}
-		else if (cr.getDisplayName() != null)
+		if (cr.getDisplayName() != null)
 		{
 			text.append(cr.getDisplayName());
 		}
+		else if (cr.getDisplayNameLong() != null)
+		{
+			text.append(cr.getDisplayNameLong());
+		}
+
 		text.append("\n" + cr.getPdrId().toString()); //$NON-NLS-1$ //$NON-NLS-2$
 		text.append("\n"); //$NON-NLS-1$
 		if (cr.getRecord() != null && cr.getRecord().getRevisions() != null
