@@ -71,6 +71,7 @@ import javax.xml.xquery.XQResultSequence;
 
 import org.bbaw.pdr.ae.common.AEConstants;
 import org.bbaw.pdr.ae.common.CommonActivator;
+import org.bbaw.pdr.ae.common.NLMessages;
 import org.bbaw.pdr.ae.config.core.ConfigXMLProcessor;
 import org.bbaw.pdr.ae.config.core.DataDescSaxHandler;
 import org.bbaw.pdr.ae.config.model.DatatypeDesc;
@@ -1667,7 +1668,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					// find and register dependencies of object
 					dependencies.put(id, findLinkedLocalObjects(xml));
 				} else {
-					statusReportAttach(log(2, "XML seems to be invalid, exempt from ingestion:\n"+s));
+					statusReportAttach(log(2, "XML seems to be invalid, exempt from ingestion:\n"+s), monitor);
 					failures.add(id);
 				}
 			}
@@ -1677,7 +1678,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					try {
 						dependingOn.get(d).add(i);
 					} catch (NullPointerException e) {
-						statusReportAttach(log(2, "Object "+i+" references unknown object "+d));
+						statusReportAttach(log(2, "Object "+i+" references unknown object "+d), monitor);
 					}
 						
 			// sequence of new objs Ids put in dependency-sensitive order
@@ -1725,7 +1726,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 					faildeps.addAll(dependingOn.get(i));
 			failures.addAll(faildeps);
 			if (failures.size() > 0)
-				statusReportAttach(log(2, "Objects not fit for ingestion: "+failures.size()));
+				statusReportAttach(log(2, "Objects not fit for ingestion: "+failures.size()), monitor);
 				
 			for (String i : objsIdqueue)
 				System.out.println(i);
@@ -2521,13 +2522,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @return
 	 */
 	private IStatus statusReport() {
-		IStatus root = log(IStatus.OK, "Update encountered no problems.");
+		IStatus root = log(IStatus.OK, NLMessages.getString("Command_update_status_ok"));
 		for (IStatus s : statusReportFlush())
 			if (s.getSeverity() > 1)
 				if (s.getSeverity() < 4) {
-					root = log(IStatus.WARNING, "Update encountered warnings.");
+					root = log(IStatus.WARNING, NLMessages.getString("Command_update_status_warn"));
 				} else
-					root = log(IStatus.ERROR, "Errors during update!");
+					root = log(IStatus.ERROR, NLMessages.getString("Command_update_status_error"));
 		MultiStatus status = new MultiStatus(
 				root.getPlugin(), root.getCode(), root.getMessage(), root.getException());
 		for (IStatus s : statusReport)
