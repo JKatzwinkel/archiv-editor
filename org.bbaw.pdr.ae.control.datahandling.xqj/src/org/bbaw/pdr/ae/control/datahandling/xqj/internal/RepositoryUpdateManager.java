@@ -93,7 +93,6 @@ import org.bbaw.pdr.ae.model.ReferenceMods;
 import org.bbaw.pdr.ae.model.User;
 import org.bbaw.pdr.ae.model.view.PDRObjectsConflict;
 import org.bbaw.pdr.ae.repositoryconnection.view.UpdateConflictDialog;
-import org.bbaw.pdr.ae.repositoryconnection.view.RepoUpdateStatusDialog;
 import org.bbaw.pdr.allies.client.Configuration;
 import org.bbaw.pdr.allies.client.IDRange;
 import org.bbaw.pdr.allies.client.Identifier;
@@ -706,14 +705,10 @@ public class RepositoryUpdateManager implements IUpdateManager
 									oConflict = new PDRObjectsConflict();
 									ReferenceMods parsedReference = (ReferenceMods) handler.getResultObject();
 									if (parsedReference != null) {
-										/*_pdrDisplayNameProc.processDisplayName(parsedReference);
-										_pdrDisplayNameProc.processDisplayNameLong(parsedReference);
-										oConflict.setRepositoryObject(parsedReference);*/
 										dnp.processDisplayName(parsedReference); // XXX this produces a long display name and possibly fixes nullpointer exception in conflict dialog
 									    oConflict.setRepositoryObject(parsedReference); // FIXME: updateconflictdialog fails because of nullpointer when probably this object's longdisplayname is accessed
 									    // TODO: does this error (longdisplayname, conflict dialog) still occur as of v2.3.10??
 									}
-									parsedReference = null;
 									oConflict.setLocalObject(_facade.getReference(new PdrId(id)));
 									conReferences.add(oConflict);
 									statusReportAttach(log(1, "Prepare conflict resolution for reference "+id));
@@ -1162,17 +1157,13 @@ public class RepositoryUpdateManager implements IUpdateManager
 	private boolean isValidXMLAspect(String xml) {
 		Source source = new StreamSource(new StringReader(xml));
 		// check input
-		boolean isValid = true;
 		try {
 			getAspectXMLValidator().validate(source);
 		} catch (Exception e) {
-			//log = new Status(IStatus.WARNING, Activator.PLUGIN_ID, "Invalid aspect xml exempted from synchronisation " + xml);
-			//iLogger.log(log);
-			//log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "Exception ", e);
-			//iLogger.log(log);
-			isValid = false;
+			statusReportAttach(log(Status.WARNING, "Aspect validation failed!", e));
+			return false;
 		}
-		return isValid;
+		return true;
 	}
 	private Validator getAspectXMLValidator() {
 		if (aspectXMLValidator == null)	{
@@ -1795,254 +1786,6 @@ public class RepositoryUpdateManager implements IUpdateManager
 		}
 	}
 	
-	/**
-	 * Injest new references.
-	 * @param monitor the monitor
-	 * @throws XQException the xQ exception
-	 * @throws UnsupportedEncodingException the unsupported encoding exception
-	 * @throws PDRAlliesClientException the pDR allies client exception
-	 * @throws InvalidIdentifierException the invalid identifier exception
-	 */
-	private void injestNewReferences(final IProgressMonitor monitor) throws Exception
-	{
-		synchronized (_dbCon) {
-			Vector<String> references = _mainSearcher.getNewReferences();
-			if (references.size() == 0)
-				return;
-			log(1, "Begin ingest of "+references.size()+" NEW reference objects from local DB into remote repo");
-			monitor.beginTask("Ingesting new References into Repository. Number of Objects: " + references.size(),
-					references.size());
-	
-			int counter = 0;
-			int begin = 0;
-			int end = (references.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : references.size();
-			Vector<String> subReferences = new Vector<String>(end);
-			Vector<String> modifiedReferenceIds = new Vector<String>();
-			String ref;
-			for (int i = begin; i < end; i++) {
-				ref = references.get(i);
-				ref = removeRefPrefix(ref); // remove mods NS prefixes, as this has not been done at getNewReferences
-				if (!isValidXMLReference(ref)) {
-					String xml2 = makeValidXMLReference(ref);
-					if (xml2 != null) {
-						subReferences.add(xml2);
-					} else
-						log(2, "Invalid Reference: "+ref);
-				} else
-					subReferences.add(ref);
-			}
-			// push references until none remain
-			while (subReferences != null && !subReferences.isEmpty()) {
-				log(1, "Push "+subReferences.size()+" NEW reference objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subReferences);
-				if (!idMap.isEmpty()) {
-					log(1, "Server returned ID map of length "+idMap.size());
-					String newID;
-					// XXX
-					// XXX hier werden zwar die IDs und querverweise in allen objekten der lokalen DB
-					// aktualisiert, allerdings nicht diejenigen in den objektkopien die in der liste 'references'
-					// liegen. Deshalb kann es passieren (z.b. in issue 3487), dasz objekte mit querverweisen
-					// auf lokale IDs hochgeladen werden sollen, die es lokal gar nicht mehr gibt und mit denen
-					// der server sowieso nichts anfangen kann.
-					// Evtl. kann man das problem dadurch beheben, dasz man einfach nicht stueckelt, sondern
-					// alle objekte gleichzeitig zum server schickt. TODO Mal drueber nachdenken
-					// XXX
-					for (Identifier id : idMap.keySet()) {
-						newID = idMap.get(id).toString();
-						// look up global mapping for current id and append it to modifiedreferenceIds
-						modifiedReferenceIds = checkModfiedIds(references, id, idMap, begin, modifiedReferenceIds);
-						// rename object in all DB objects of type aodl, podl and mods
-						resetObjectId(id, newID, 3);
-					}
-				}
-				monitor.worked(subReferences.size());
-	
-				begin = end; // this seems about right
-				end = (references.size() > NEWOBJECTS_PACKAGE_SIZE+end) ? (end+NEWOBJECTS_PACKAGE_SIZE) : references.size();  
-				counter += subReferences.size();
-				subReferences.clear();
-	
-				for (int i = begin; i < end; i++) {
-					ref = references.get(i);
-					ref = removeRefPrefix(ref); // remove mods prefixes now
-					if (!isValidXMLReference(ref)) {
-						String xml2 = makeValidXMLReference(ref);
-						if (xml2 != null) {
-							subReferences.add(xml2);
-						} else
-							log(2, "Invalid Reference: "+ref);
-					} else
-						subReferences.add(ref);
-				}
-			}
-			// in local DB, move all Ids identified as having local changes from
-			// the DB's 'modified' collection to persistent collections.
-			if (modifiedReferenceIds != null && !modifiedReferenceIds.isEmpty()) 
-				_idService.insertIdModifiedObject(modifiedReferenceIds, "pdrRo"); 
-			// FIXME: ^ this doesn't seem to work out:
-			// new objects are being send as modified objects even when they just have been ingested [3132, 4098, 3721] 
-			log(0, "Done pushing NEW reference objects. Total number of pushed references: "+counter+"\n(out of "+references.size()+" new objects, server returned "+modifiedReferenceIds.size()+" global IDs)");
-		}
-	}
-
-	/**
-	 * Injest new persons.
-	 * @param monitor the monitor
-	 * @throws XQException the xQ exception
-	 * @throws UnsupportedEncodingException the unsupported encoding exception
-	 * @throws PDRAlliesClientException the pDR allies client exception
-	 * @throws InvalidIdentifierException the invalid identifier exception
-	 */
-	private void injestNewPersons(final IProgressMonitor monitor) throws Exception
-	{
-		synchronized (_dbCon)
-		{
-			Vector<String> persons = new Vector<String>();
-			for (String s : _mainSearcher.getNewPersons()) {
-				s = removePersonPrefix(s); // podl prefix is removed from xml
-				persons.add(s);
-			}
-			if (persons.size() == 0)
-				return;
-			log(1, "Begin ingest of "+persons.size()+" NEW person objects from local DB into remote repo");
-			monitor.beginTask("Ingesting new Persons into Repository. Number of Objects: " + persons.size(),
-					persons.size());
-
-			int counter = 0;
-			int begin = 0;
-			int end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : persons.size();
-			Vector<String> subPersons = new Vector<String>(end);
-			Vector<String> modifiedPersonsIds = new Vector<String>();
-			for (int i = begin; i < end; i++) {
-				String xml = persons.get(i);
-				if (!isValidXMLPerson(xml)) {
-					String xml2 = makeValidXMLPerson(xml);
-					if (xml2 != null) {
-						subPersons.add(xml2);
-					} else
-						log(2, "Invalid New Person object: "+xml);
-				} else
-					subPersons.add(xml);
-			}
-			// push'n'chunk
-			while (subPersons != null && !subPersons.isEmpty())	{
-				log(1, "Push "+subPersons.size()+" NEW podl objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subPersons);
-
-				if (!idMap.isEmpty()) {
-					// System.out.println("size of map " + idMap.size());
-					// XQConnection con = _dbCon.getConnection();
-					// XQPreparedExpression xqp;
-					// XQResultSequence xqs = null;
-					// String replace;
-					String newID;
-					for (Identifier id : idMap.keySet()) {
-						newID = idMap.get(id).toString();
-						// find global ID provided by server for current id 
-						modifiedPersonsIds = checkModfiedIds(persons, id, idMap, begin, modifiedPersonsIds);
-						resetObjectId(id, newID, 2); // update all occurences of this id in local DB in aodl and podl objects
-					}
-				}
-				monitor.worked(subPersons.size());
-				begin = end; // seems legit
-				end = (persons.size() > NEWOBJECTS_PACKAGE_SIZE + end) ? (end + NEWOBJECTS_PACKAGE_SIZE) : persons.size();
-				counter += subPersons.size();
-				subPersons.clear();
-
-				for (int i = begin; i < end; i++) {
-					String xml = persons.get(i);
-					if (!isValidXMLPerson(xml)) {
-						String xml2 = makeValidXMLPerson(xml);
-						if (xml2 != null) {
-							subPersons.add(xml2);
-						} else
-							log(2, "Invalid New Person object: "+xml);
-					} else
-						subPersons.add(xml);
-				}
-			}
-			// set dirty status of all objects handled just now to 'clean'
-			if (modifiedPersonsIds != null && !modifiedPersonsIds.isEmpty())
-				_idService.insertIdModifiedObject(modifiedPersonsIds, "pdrPo");
-			log(0, "Done pushing NEW podl objects. Total number of pushed persons: "+counter+"\n(out of "+persons.size()+" new objects, server returned "+modifiedPersonsIds.size()+" global IDs)");
-		}
-	}
-
-	/**
-	 * Injest new aspects.
-	 * @param monitor the monitor
-	 * @throws XQException the xQ exception
-	 * @throws UnsupportedEncodingException the unsupported encoding exception
-	 * @throws PDRAlliesClientException the pDR allies client exception
-	 * @throws InvalidIdentifierException the invalid identifier exception
-	 */
-	private void injestNewAspects(final IProgressMonitor monitor) throws Exception
-	{
-		synchronized (_dbCon) {
-			Vector<String> aspects = new Vector<String>();
-			for (String s : _mainSearcher.getNewAspects()) {
-				s = removeAspectPrefixes(s); // remove aodl prefix from xml
-				aspects.add(s);
-			}
-			if (aspects.size() == 0)
-				return;
-			log(1, "Begin ingest of "+aspects.size()+" NEW aspect objects from local DB into remote repo");
-			monitor.beginTask("Ingesting new Aspects into Repository. Number of Objects: " + aspects.size(),
-					aspects.size());
-	
-			int counter = 0;
-			int begin = 0;
-			int end = (aspects.size() > NEWOBJECTS_PACKAGE_SIZE) ? NEWOBJECTS_PACKAGE_SIZE : aspects.size();
-			Vector<String> subAspects = new Vector<String>(end);
-			Vector<String> modifiedAspectIds = new Vector<String>();
-			for (int i = begin; i < end; i++) {
-				String xml = aspects.get(i);
-				if (!isValidXMLAspect(xml)) {
-					String xml2 = makeValidXMLAspect(xml);
-					if (xml2 != null) {
-						subAspects.add(xml);
-					} else
-						log(2, "Invalid aspect: "+xml);
-				} else
-					subAspects.add(xml);
-			}
-			// push'n'chunk until done
-			while (subAspects != null && !subAspects.isEmpty()) {
-				log(1, "Push "+subAspects.size()+" NEW aodl objects to project ["+_projectId+"] at repo ["+_repositoryId+"]");
-				Map<Identifier, Identifier> idMap = Repository.ingestObjects(_repositoryId, _projectId, subAspects);
-	
-				if (!idMap.isEmpty()) {
-					String newID;
-					for (Identifier id : idMap.keySet()) {
-						newID = idMap.get(id).toString();
-						modifiedAspectIds = checkModfiedIds(aspects, id, idMap, begin, modifiedAspectIds);
-						resetObjectId(id, newID, 1);
-					}
-				}
-				monitor.worked(subAspects.size());
-				begin = end; // ok
-				end = (aspects.size() > NEWOBJECTS_PACKAGE_SIZE + end) ? (end + NEWOBJECTS_PACKAGE_SIZE) : aspects.size();
-				counter += subAspects.size();
-				subAspects.clear();
-	
-				for (int i = begin; i < end; i++) {
-					String xml = aspects.get(i);
-					if (!isValidXMLAspect(xml)) {
-						String xml2 = makeValidXMLAspect(xml);
-						if (xml2 != null) {
-							subAspects.add(xml);
-						} else
-							log(2, "Invalid aspect: "+xml);
-					} else
-						subAspects.add(xml);
-				}
-			}
-			//System.out.println("modifiedAspectIds size " + modifiedAspectIds.size());
-			if (modifiedAspectIds != null && !modifiedAspectIds.isEmpty())
-				_idService.insertIdModifiedObject(modifiedAspectIds, "pdrAo");
-			log(0, "Done pushing NEW aodl objects. Total number of pushed aspects: "+counter+"\n(out of "+aspects.size()+" new objects, server returned "+modifiedAspectIds.size()+" global IDs)");
-		}
-	}
 
 	/**
 	 * Resolve object conflicts by one of the following strategies:
