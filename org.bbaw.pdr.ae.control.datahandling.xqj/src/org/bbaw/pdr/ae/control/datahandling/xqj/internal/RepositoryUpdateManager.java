@@ -211,7 +211,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 		// System.out.println("checkModfiedIds");
 		log(1, "Look up persistent global ID for local object "+id+" based on ID mapping provided by remote repo, amongst "+(objects.size()-begin)+" objects");
 		//log(1, "Number of global IDs collectd so far: "+modifiedIds.size());
-		for (int i = 0; i <= begin && i < objects.size(); i++) { // XXX wie bitte?
+		for (int i = 0; i <= begin && i < objects.size(); i++) {
 			String s = objects.get(i);
 			if (s.contains(id.toString())) {
 				Identifier oldId = new Identifier(extractPdrId(s));
@@ -1730,8 +1730,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 				
 			for (String i : objsIdqueue)
 				System.out.println(i);
-			//if (newObjsIds.size()>0)
-				//return null;
+
+			
 			// ===== INGEST =====
 			// pdr object types ingest sequence
 			Vector<String> pdrTypes = new Vector<String>(Arrays.asList("pdrRo", "pdrPo", "pdrAo"));
@@ -1775,7 +1775,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 						// (call resetObjectId up to level 3), remove objects from local DB 'modified' collection
 						// (IDService.insertIdModifiedObject)
 						if (!persistentIds.isEmpty()) 
-							_idService.insertIdModifiedObject(persistentIds, pdrType); // XXX stay alert: objects might still pop up as 'modified' later
+							_idService.insertIdModifiedObject(persistentIds, pdrType); 
+						
 						statusReportAttach(log(0, "server returned "+persistentIds.size()+" global IDs\n"+persistentIds));
 					} catch (Exception e) {
 						// if ingest fails regardless of thoughtful precautions, terminate ingest, return all queued objects
@@ -2141,15 +2142,12 @@ public class RepositoryUpdateManager implements IUpdateManager
 			// System.out.println("renameobject xml " + xml);
 			if (xml != null && xml.trim().length() > 0) {
 				log(1, "Move object "+xml+"\nfrom old ID "+oldId+"\nto new ID "+newID);
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject delete " + oldId.toString());
-				//iLogger.log(log);
+				log(IStatus.INFO, "renameObject delete " + oldId.toString());
 				_dbCon.delete(oldId.toString(), col);
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject store newid " + newID.toString());
-				//iLogger.log(log);
+				log(IStatus.INFO, "renameObject store newid " + newID.toString());
 				// save object under new ID to DB
 				_dbCon.store2DB(xml, col, newID.toString() + ".xml", true);
-				log = new Status(IStatus.INFO, Activator.PLUGIN_ID, "renameObject renaming done " + newID.toString());
-				//iLogger.log(log);
+				log(IStatus.INFO, "renameObject renaming done " + newID.toString());
 				//log(1, "Object under newID "+newID+":\n"+_mainSearcher.getObjectXML(newID, col));
 			}
 

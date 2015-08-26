@@ -35,6 +35,7 @@ package org.bbaw.pdr.ae.control.datahandling.xqj.internal;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Vector;
 import java.util.regex.Matcher;
 
@@ -671,19 +672,19 @@ public class PdrIdService implements IPdrIdService
 			con.close();
 		}
 
-		// wenn objekt nicht in der liste der neuen objekte steht, wird geguckt ob es
+		// wenn objekt id nicht in der liste der neuen objekte steht, wird geguckt ob es
 		// in der liste der lokal modifizierten objekte steht
-		// XXX und wenn ja, kommt es da einfach nochmal rein???
+		// und wenn ja, kommt das zur id gehoerende objekt in die modified collection.
 		if (!isNew)
 		{
 			boolean isModified = false;
 			XQConnection con = _dbCon.getConnection();
 			XQPreparedExpression xqp;
 
-			String queryIsNew = "let $id := collection(\"management\")//" + pdrId.getType() + "/modified/id[./text()='"
+			String queryIsModified = "let $id := collection(\"management\")//" + pdrId.getType() + "/modified/id[./text()='"
 					+ pdrId.toString() + "']\n" + "return\n" + "if ($id)\n" + "then <isModified/>\n"
 					+ "else <notModified/>\n";
-			xqp = con.prepareExpression(queryIsNew);
+			xqp = con.prepareExpression(queryIsModified);
 			XQResultSequence xqs = xqp.executeQuery();
 			isModified = xqs.getSequenceAsString(null).equals("<isModified/>");
 			xqs.close();
@@ -709,31 +710,41 @@ public class PdrIdService implements IPdrIdService
 	@Override
 	public final void insertIdModifiedObject(final Vector<String> modifiedIds, final String type) throws Exception {
 		// alle als modifiziert gelisteten objekte (von den uebergebenen)
-		// werden in persistente collections kopiert und dann aus 
-		// der modified liste geloescht, gelten also fuerderhin als
-		// ohne lokale aenderungen?
-		String insert = "insert nodes  <modified> ";
-		for (String id : modifiedIds) {
-			// System.out.println(id);
-			insert += "<id>" + id + "</id>\n";
-		}
-		insert += " </modified> into collection(\"management\")//" + type;
+		// fliegen aus der modified-collection raus
+		
+/*		String insert = "insert nodes <modified>";
+		for (String id : modifiedIds)
+			insert += "<id>" + id + "</id>";
+		insert += "</modified> into collection(\"management\")//" + type;*/
 
-		String delete = "delete nodes  collection(\"management\")//" + type + "/modified";
+
+		//String delete = "delete nodes  collection(\"management\")//" + type + "/modified";
+		Iterator<String> i = modifiedIds.iterator();
+		String idExpr = "'" + i.next() +"'";
+		while (i.hasNext())
+			idExpr += ", '" + i.next() + "'";
+		idExpr = modifiedIds.size()>1 ? "(" + idExpr + ")" : idExpr;
+		
+		String delete = "delete nodes collection(\"management\")//" + type + "/modified/id[./text()=" + idExpr + "]";
+		
 		synchronized (_dbCon)
 		{
 			XQConnection con = _dbCon.getConnection();
 			XQPreparedExpression xqp;
-			// System.out.println(insert);
+			System.out.println(delete);
 			xqp = con.prepareExpression(delete);
 			XQResultSequence xqs = xqp.executeQuery();
+			
+			
+/*			System.out.println(insert);
 			xqp = con.prepareExpression(insert);
 			xqs = xqp.executeQuery();
+			*/
 			xqs.close();
 			_dbCon.optimize("management");
 			con.close();
 		}
-
+		
 	}
 
 	@Override
