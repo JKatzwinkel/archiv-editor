@@ -1782,7 +1782,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 						// if ingest fails regardless of thoughtful precautions, terminate ingest, return all queued objects
 						// as failure list
 						log(2, "Could not ingest/update new local objects (login as "+Configuration.getInstance().getPDRUserID()+" @ "+Configuration.getInstance().getAxis2BaseURL()+")", e);
-						statusReportAttach(log(2, "New local objects could not be ingested."));
+						statusReportAttach(log(4, "New local objects could not be ingested.", e));
 						
 						failures.addAll(packet);
 						return new Vector<String>( failures );
