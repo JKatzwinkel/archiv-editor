@@ -482,19 +482,7 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 									helpObjs.add(tns[i].getPdrObject());
 								}
 							}
-							try {
-								String stats = "New objects [r/p/a]: "+
-									_mainSearcher.getNewReferences().size()+"/"+
-									_mainSearcher.getNewPersons().size()+"/"+
-									_mainSearcher.getNewAspects().size();
-								stats += " - Modified objects [r/p/a]: " + 
-									_facade.getIdService().getModifiedReferenceIds().size() + "/" +
-									_facade.getIdService().getModifiedPersonIds().size() + "/" +
-									_facade.getIdService().getModifiedAspectIds().size();
-								setStatusLine(stats);
-								} catch (Exception e) {
-									setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
-								}
+							setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
 							_selection = helpObjs.toArray(new PdrObject[helpObjs.size()]);
 							_facade.setCurrentTreeObjects(_selection);
 							showCurrentPdrObject();
@@ -830,19 +818,7 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 					}
 					selectionChanged(Treeview.this, sel);
 					_facade.setCurrentTreeObjects(_selection);
-					try {
-					String stats = "New objects [r/p/a]: "+
-						_mainSearcher.getNewReferences().size()+"/"+
-						_mainSearcher.getNewPersons().size()+"/"+
-						_mainSearcher.getNewAspects().size()+
-						" - Modified objects [r/p/a]: "+
-						_facade.getIdService().getModifiedReferenceIds().size()+"/"+
-						_facade.getIdService().getModifiedPersonIds().size()+"/"+
-						_facade.getIdService().getModifiedAspectIds().size();
-					setStatusLine(stats);
-					} catch (Exception e) {
-						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
-					}
+					setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
 
 				}
 
@@ -2217,19 +2193,7 @@ public class Treeview extends ViewPart implements ISelectionListener, ISelection
 //							}
 //						}
 					// }
-					try {
-					String stats = "New objects [r/p/a]: "+
-						_mainSearcher.getNewReferences().size()+"/"+
-						_mainSearcher.getNewPersons().size()+"/"+
-						_mainSearcher.getNewAspects().size();
-					stats += " - Modified objects [r/p/a]: " + 
-							_facade.getIdService().getModifiedReferenceIds().size() + "/" +
-							_facade.getIdService().getModifiedPersonIds().size() + "/" +
-							_facade.getIdService().getModifiedAspectIds().size();					
-					setStatusLine(stats);
-					} catch (Exception e) {
-						setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
-					}
+					setStatusLine(helpObjs.size() + " " + NLMessages.getString("View_objects_selected"));
 					//_selection = helpObjs.toArray(new PdrObject[helpObjs.size()]);
 				}
 			}
