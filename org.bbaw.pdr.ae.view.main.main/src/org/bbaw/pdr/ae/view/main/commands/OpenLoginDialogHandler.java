@@ -67,6 +67,7 @@ public class OpenLoginDialogHandler implements IHandler
 		Display display = workbench.getDisplay();
 		Shell shell = new Shell(display);
 		LoginDialog dialog = new LoginDialog(shell, true);
+		dialog.focusOkButton();
 		dialog.open();
 		return null;
 	}

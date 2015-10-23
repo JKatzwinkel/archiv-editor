@@ -68,6 +68,7 @@ public class ChangeUserHandler extends AbstractHandler implements IHandler
 		{
 			LoginDialog dialog = new LoginDialog(null, true);
 			dialog.create();
+			dialog.focusOkButton();
 			dialog.open();
 
 		}

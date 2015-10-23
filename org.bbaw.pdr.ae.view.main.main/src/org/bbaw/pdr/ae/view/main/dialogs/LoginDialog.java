@@ -68,6 +68,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import org.bbaw.pdr.allies.error.PDRAlliesClientException;
@@ -125,7 +126,7 @@ public class LoginDialog extends TitleAreaDialog
 	private boolean usersInitialized;
 	/** Logger. */
 	private static ILog iLogger = AEConstants.ILOGGER;
-
+	
 	/**
 	 * Instantiates a new login dialog.
 	 * @param parentShell the parent shell
@@ -193,7 +194,7 @@ public class LoginDialog extends TitleAreaDialog
 			});
 		}
 		// Own method as we need to overview the SelectionAdapter
-		createOkButton(parent, OK, NLMessages.getString("Dialog_save"), true); //$NON-NLS-1$
+		createOkButton(parent, OK, NLMessages.getString("LoginDialog_save"), true); //$NON-NLS-1$
 		// Add a SelectionListener
 
 		// Create Cancel button
@@ -365,7 +366,6 @@ public class LoginDialog extends TitleAreaDialog
 			}); // SelectionListener
 		}
 
-
 		parent.pack();
 
 		return parent;
@@ -383,7 +383,11 @@ public class LoginDialog extends TitleAreaDialog
 				setMessage(null);
 			}
 		}
-
+	}
+	
+	public void focusOkButton() {
+		if (_OKButton != null) 
+			this.getShell().setDefaultButton(_OKButton);
 	}
 
 	/**

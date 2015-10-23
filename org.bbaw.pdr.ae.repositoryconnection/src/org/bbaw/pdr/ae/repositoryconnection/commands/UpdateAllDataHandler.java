@@ -236,7 +236,11 @@ public class UpdateAllDataHandler implements IHandler
 											} else {
 												info = NLMessages.getString("Command_update_error_server");
 												info += "\n\n" + ((Status)_updateStatus).getMessage();
-												info += "\n\n" + _updateStatus.getException().getStackTrace();
+												if (_updateStatus.getException() != null) {
+													info += "\n";
+													for (StackTraceElement ste : _updateStatus.getException().getStackTrace())
+														info += "\n" + ste;
+												}
 											}
 										}
 										MessageDialog infoDialog = new MessageDialog(shell, info, null, info,
