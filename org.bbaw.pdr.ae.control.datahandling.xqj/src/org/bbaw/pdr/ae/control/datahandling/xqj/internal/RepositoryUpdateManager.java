@@ -2192,7 +2192,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @return
 	 */
 	private IStatus statusReportBuf(IStatus s, IProgressMonitor monitor) {
-		monitor.subTask(s.getMessage());
+		if (monitor != null)
+			monitor.subTask(s.getMessage());
 		return statusReportBuf(s);
 	}
 
@@ -2222,7 +2223,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 	 * @return
 	 */
 	private IStatus statusReportAttach(IStatus s, IProgressMonitor monitor) {
-		monitor.subTask(s.getMessage());
+		if (monitor != null)
+			monitor.subTask(s.getMessage());
 		return statusReportAttach(s);
 	}
 	/**
@@ -3101,7 +3103,8 @@ public class RepositoryUpdateManager implements IUpdateManager
 	public final IStatus updateUsers(final String userID, final String password, final IProgressMonitor monitor)
 			throws Exception {
 		statusReportBuf(log(0, "Synchronize modified user objects."), monitor);
-		// XXX wieso hier extra nochmal anmelden? passiert in aufrufender methode schon
+		// wieso hier extra nochmal anmelden? passiert in aufrufender methode schon
+		// wegen aufruf aus login dialog
 		String url = Platform.getPreferencesService().getString(CommonActivator.PLUGIN_ID, "REPOSITORY_URL",
 				AEConstants.REPOSITORY_URL, null);
 		_repositoryId = Platform.getPreferencesService().getInt(CommonActivator.PLUGIN_ID, "REPOSITORY_ID",
@@ -3117,7 +3120,7 @@ public class RepositoryUpdateManager implements IUpdateManager
 			Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + ".001.000000001", "pdrrdp"); // XXX pdrAdmin funktioniert nicht auf musmig server
 			//Configuration.getInstance().setPDRUser("pdrUo." + String.format("%03d", _repositoryId) + "." + String.format("%03d", _projectId) + ".000000001", "pdrrdp");
 		}
-		statusReportAttach(log(1, "Log in remote repo as: "+Configuration.getInstance().getPDRUserID()),monitor);
+		statusReportAttach(log(1, "Log in remote repo [" + Configuration.getInstance().getAxis2BaseURL()+"] as: "+Configuration.getInstance().getPDRUserID()),monitor);
 		
 		// retrieve remote repo user ID ranges 
 		List<IDRange> ranges = Utilities.getOccupiedObjectIDRanges(PDRType.USER, _repositoryId, _projectId, 1, MAX_OBJECT_NUMBER);

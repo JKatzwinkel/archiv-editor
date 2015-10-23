@@ -302,6 +302,7 @@ public class AEApplication implements IApplication
 		{
 			LoginDialog dialog = new LoginDialog(null, true);
 			dialog.create();
+			dialog.focusOkButton();
 			dialog.open();
 		}
 

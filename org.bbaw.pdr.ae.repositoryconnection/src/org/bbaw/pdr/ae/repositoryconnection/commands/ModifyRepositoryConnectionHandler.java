@@ -181,6 +181,7 @@ public class ModifyRepositoryConnectionHandler implements IHandler
 					LoginDialog loginDialog = new LoginDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow()
 							.getShell(),
 							true);
+					loginDialog.focusOkButton();
 					loginDialog.open();
 				}
 			}
