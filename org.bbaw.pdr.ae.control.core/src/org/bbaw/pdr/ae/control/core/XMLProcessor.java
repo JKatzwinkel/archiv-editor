@@ -1972,21 +1972,15 @@ public class XMLProcessor implements XMLProcessorInterface
 
 		}
 
-		if (p.getConcurrences() != null)
+		if (p.getConcurrences() != null && p.getConcurrences().getConcurrences() != null && !p.getConcurrences().getConcurrences().isEmpty())
 		{
 			startElement = eventFactory.createStartElement("podl", "http://pdr.bbaw.de/namespaces/podl/",
 					"concurrences");
 			eventWriter.add(startElement);
 
 
-			if (p.getConcurrences() != null && p.getConcurrences().getConcurrences() != null)
-			{
-				for (int i = 0; i < p.getConcurrences().getConcurrences().size(); i++)
-
-				{
-
-					createPersonConcurrenceNode(eventWriter, "concurrence", p.getConcurrences().getConcurrences().get(i), p);
-				}
+			for (Concurrence con : p.getConcurrences().getConcurrences()) {
+				createPersonConcurrenceNode(eventWriter, "concurrence", con, p);
 			}
 			eventWriter.add(eventFactory
 					.createEndElement("podl", "http://pdr.bbaw.de/namespaces/podl/", "concurrences"));
